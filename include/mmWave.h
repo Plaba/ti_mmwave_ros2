@@ -1,4 +1,3 @@
-
 /*
  * mmWave.h
  *
@@ -6,8 +5,8 @@
  *
  *
  * Copyright (C) 2017 Texas Instruments Incorporated - http://www.ti.com/ 
- * 
- * 
+ *
+ *
  *  Redistribution and use in source and binary forms, with or without 
  *  modification, are permitted provided that the following conditions 
  *  are met:
@@ -150,6 +149,7 @@ typedef struct DPIF_PointCloudCartesian_t
      * is moving away from the sensor and negative velocity means target
      * is moving towards the sensor. */
     float velocity;
+
 } DPIF_PointCloudCartesian;
 
 /**
@@ -164,16 +164,65 @@ typedef struct DPIF_PointCloudSideInfo_t
 
     /*! @brief y - CFAR noise level of the side of the detected cell in dB expressed in 0.1 steps of dB */
     int16_t noise;
+
 } DPIF_PointCloudSideInfo;
+
+/**
+ * @brief
+ *  Point cloud definition in spherical coordinate system
+ *  Adapted from https://github.com/Claud1234/ti_mmwave_rospkg
+ */
+typedef struct DPIF_PointCloudSpherical_t
+{
+    /*! @brief     Range in meters */
+    float  range;
+
+    /*! @brief     Azimuth angle in degrees in the range [-90,90],
+     *             where positive angle represents the right hand side as viewed
+     *             from the sensor towards the scene and negative angle
+     *             represents left hand side */
+    float  azimuthAngle;
+
+    /*! @brief     Elevation angle in degrees in the range [-90,90],
+     *             where positive angle represents above the sensor and negative
+     *             below the sensor */
+    float  elevAngle;
+
+    /*! @brief  Doppler velocity estimate in m/s. Positive velocity means target
+     *          is moving away from the sensor and negative velocity means target
+     *          is moving towards the sensor. */
+    float    velocity;
+
+} DPIF_PointCloudSpherical;
+
+typedef volatile struct DPIF_CFARDetList_t
+{
+    /*!< Range index */
+    uint16_t rangeIdx;
+
+    /*!< Doppler index */
+    uint16_t dopplerIdx;
+
+    /*!< Signal to noise power ratio in steps of 0.1 dB */
+    int16_t snr;
+
+    /*!< Noise level in steps of 0.1 dB */
+    int16_t noise;
+
+} DPIF_CFARDetList;
+
 
 struct mmwDataPacket{
     MmwDemo_output_message_header_t header;
     uint16_t numObjOut;
+
     uint16_t xyzQFormat; // only used for SDK 1.x and 2.x
     MmwDemo_DetectedObj objOut; // only used for SDK 1.x and 2.x
 
-    DPIF_PointCloudCartesian_t newObjOut; // used for SDK 3.x
+    DPIF_PointCloudCartesian_t objOut_cartes; // used for SDK 3.x (x, y, z, velocity)
     DPIF_PointCloudSideInfo_t sideInfo; // used for SDK 3.x
+    DPIF_PointCloudSpherical_t objOut_spher; // used for SDK 3.x (range, azimuthAngle, elevAngle, velocity)
+    DPIF_CFARDetList_t detList;
 };
 
 const uint8_t magicWord[8] = {2, 1, 4, 3, 6, 5, 8, 7};
