@@ -236,7 +236,6 @@ void *DataUARTHandler::sortIncomingData( void )
 
     while(ros::ok()) {
         switch(sorterState) {
-
             case READ_HEADER:
                 //init variables
                 mmwData.numObjOut = 0;
@@ -320,9 +319,12 @@ void *DataUARTHandler::sortIncomingData( void )
                     mmwData.numObjOut = mmwData.header.numDetectedObj;
                 }
 
-                // RScan->header.seq = 0;
-                // RScan->header.stamp = (uint64_t)(ros::Time::now());
-                // RScan->header.stamp = (uint32_t) mmwData.header.timeCpuCycles;
+                // Populate sequence
+                RScan->header.seq = 0;
+
+                // Get time
+                RScan->header.stamp = ros::Time::now().toNSec();
+
                 RScan->header.frame_id = frameID;
                 RScan->height = 1;
                 RScan->width = mmwData.numObjOut;
@@ -460,16 +462,12 @@ void *DataUARTHandler::sortIncomingData( void )
 
                     // WTFFF???
                     if (((maxElevationAngleRatioSquared == -1) ||
-                                 (((RScan->points[i].z * RScan->points[i].z) / (RScan->points[i].x * RScan->points[i].x +
-                                                                                RScan->points[i].y * RScan->points[i].y)
-                                  ) < maxElevationAngleRatioSquared)
-                                ) &&
-                                ((maxAzimuthAngleRatio == -1) || (fabs(RScan->points[i].y / RScan->points[i].x) < maxAzimuthAngleRatio)) &&
-                                        (RScan->points[i].x != 0)
-                               )
-                    {
-                        radar_scan_pub.publish(radarscan);
+                        (((RScan->points[i].z * RScan->points[i].z) / (RScan->points[i].x * RScan->points[i].x + RScan->points[i].y * RScan->points[i].y)) < maxElevationAngleRatioSquared)) &&
+                        ((maxAzimuthAngleRatio == -1) || (fabs(RScan->points[i].y / RScan->points[i].x) < maxAzimuthAngleRatio)) && (RScan->points[i].x != 0)) {
+                            radar_scan_pub.publish(radarscan);
                     }
+
+                    // Increase counter
                     i++;
                 }
 
@@ -483,7 +481,7 @@ void *DataUARTHandler::sortIncomingData( void )
                     for (i = 0; i < mmwData.numObjOut; i++) {
                         //get snr (unit is 0.1 steps of dB)
                         memcpy( &mmwData.sideInfo.snr, &currentBufp->at(currentDatap), sizeof(mmwData.sideInfo.snr));
-                        currentDatap += ( sizeof(mmwData.sideInfo.snr) );
+                        currentDatap += (sizeof(mmwData.sideInfo.snr));
 
                         //get noise (unit is 0.1 steps of dB)
                         memcpy( &mmwData.sideInfo.noise, &currentBufp->at(currentDatap), sizeof(mmwData.sideInfo.noise));
