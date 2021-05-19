@@ -219,12 +219,12 @@ void *DataUARTHandler::sortIncomingData( void )
     uint32_t headerSize;
     unsigned int currentDatap = 0;
     SorterState sorterState = READ_HEADER;
-    int i = 0, tlvCount = 0, offset = 0;
+    int i = 0, tlvCount = 0;
     int j = 0;
     float maxElevationAngleRatioSquared;
     float maxAzimuthAngleRatio;
 
-    boost::shared_ptr<pcl::PointCloud<pcl::PointXYZI>> RScan(new pcl::PointCloud<pcl::PointXYZI>);
+    boost::shared_ptr<pcl::PointCloud<radar_pcl::PointXYZIVR>> RScan(new pcl::PointCloud<radar_pcl::PointXYZIVR>);
     ti_mmwave_rospkg::RadarScan radarscan;
 
     //wait for first packet to arrive
@@ -311,13 +311,13 @@ void *DataUARTHandler::sortIncomingData( void )
             // CHECK_TLV_TYPE code has already read tlvType and tlvLen
 
             i = 0;
-            offset = 0;
+
             if (((mmwData.header.version >> 24) & 0xFF) < 3) { // SDK version is older than 3.x
-                //get number of objects
+                // Get number of objects
                 memcpy( &mmwData.numObjOut, &currentBufp->at(currentDatap), sizeof(mmwData.numObjOut));
                 currentDatap += ( sizeof(mmwData.numObjOut) );
 
-                //get xyzQFormat
+                // Get xyzQFormat
                 memcpy( &mmwData.xyzQFormat, &currentBufp->at(currentDatap), sizeof(mmwData.xyzQFormat));
                 currentDatap += ( sizeof(mmwData.xyzQFormat) );
             } else { // SDK version is at least 3.x
@@ -378,7 +378,8 @@ void *DataUARTHandler::sortIncomingData( void )
                     memcpy( &mmwData.objOut.z, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.z));
                     currentDatap += ( sizeof(mmwData.objOut.z) );
 
-                    float temp[7];
+                    float temp[8];
+
                     temp[0] = (float) mmwData.objOut.x;
                     temp[1] = (float) mmwData.objOut.y;
                     temp[2] = (float) mmwData.objOut.z;
@@ -417,38 +418,45 @@ void *DataUARTHandler::sortIncomingData( void )
                     radarscan.intensity = temp[5];
                 } else { // SDK version is 3.x+
                     //get object x-coordinate (meters)
-                    memcpy(&mmwData.newObjOut.x, &currentBufp->at(currentDatap), sizeof(mmwData.newObjOut.x));
-                    currentDatap += (sizeof(mmwData.newObjOut.x));
+                    memcpy(&mmwData.objOut_cartes.x, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.x));
+                    currentDatap += (sizeof(mmwData.objOut_cartes.x));
 
                     //get object y-coordinate (meters)
-                    memcpy(&mmwData.newObjOut.y, &currentBufp->at(currentDatap), sizeof(mmwData.newObjOut.y));
-                    currentDatap += (sizeof(mmwData.newObjOut.y));
+                    memcpy(&mmwData.objOut_cartes.y, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.y));
+                    currentDatap += (sizeof(mmwData.objOut_cartes.y));
 
                     //get object z-coordinate (meters)
-                    memcpy(&mmwData.newObjOut.z, &currentBufp->at(currentDatap), sizeof(mmwData.newObjOut.z));
-                    currentDatap += (sizeof(mmwData.newObjOut.z));
+                    memcpy(&mmwData.objOut_cartes.z, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.z));
+                    currentDatap += (sizeof(mmwData.objOut_cartes.z));
 
                     //get object velocity (m/s)
-                    memcpy(&mmwData.newObjOut.velocity, &currentBufp->at(currentDatap), sizeof(mmwData.newObjOut.velocity));
-                    currentDatap += (sizeof(mmwData.newObjOut.velocity));
+                    memcpy(&mmwData.objOut_cartes.velocity, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.velocity));
+                    currentDatap += (sizeof(mmwData.objOut_cartes.velocity));
 
                     // Map mmWave sensor coordinates to ROS coordinate system
-                    RScan->points[i].x = mmwData.newObjOut.y; // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
-                    RScan->points[i].y = -mmwData.newObjOut.x; // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
-                    RScan->points[i].z = mmwData.newObjOut.z; // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
+                    RScan->points[i].x = mmwData.objOut_cartes.y; // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
+                    RScan->points[i].y = -mmwData.objOut_cartes.x; // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
+                    RScan->points[i].z = mmwData.objOut_cartes.z; // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
+                    RScan->points[i].velocity = mmwData.objOut_cartes.velocity;
+                    RScan->points[i].range = sqrt(radarscan.x*radarscan.x +
+                                                  radarscan.y*radarscan.y +
+                                                  radarscan.z*radarscan.z);
 
                     radarscan.header.frame_id = frameID;
                     radarscan.header.stamp = ros::Time::now();
 
                     radarscan.point_id = i;
-                    radarscan.x = mmwData.newObjOut.y;
-                    radarscan.y = -mmwData.newObjOut.x;
-                    radarscan.z = mmwData.newObjOut.z;
-                    // radarscan.range = temp[4];
-                    radarscan.velocity = mmwData.newObjOut.velocity;
-                    // radarscan.doppler_bin = tmp;
-                    // radarscan.bearing = temp[6];
-                    // radarscan.intensity = temp[5];
+                    radarscan.x = mmwData.objOut_cartes.y;
+                    radarscan.y = -mmwData.objOut_cartes.x;
+                    radarscan.z = mmwData.objOut_cartes.z;
+                    radarscan.range = sqrt(radarscan.x*radarscan.x +
+                                           radarscan.y*radarscan.y +
+                                           radarscan.z*radarscan.z);
+
+                    radarscan.velocity = mmwData.objOut_cartes.velocity;
+                    radarscan.doppler_bin = (uint16_t)(mmwData.detList.dopplerIdx + nd/2);
+                    radarscan.bearing = std::atan2(-mmwData.objOut_cartes.x, mmwData.objOut_cartes.y)/M_PI*180;
+                    radarscan.intensity = (float)mmwData.sideInfo.snr/10.0;
 
 
                     // For SDK 3.x, intensity is replaced by snr in sideInfo and is parsed in the READ_SIDE_INFO code
@@ -485,7 +493,8 @@ void *DataUARTHandler::sortIncomingData( void )
                     memcpy( &mmwData.sideInfo.noise, &currentBufp->at(currentDatap), sizeof(mmwData.sideInfo.noise));
                     currentDatap += ( sizeof(mmwData.sideInfo.noise) );
 
-                    RScan->points[i].intensity = (float) mmwData.sideInfo.snr / 10.0;   // Use snr for "intensity" field (divide by 10 since unit of snr is 0.1dB)
+                    // Use snr for "intensity" field (divide by 10 since unit of snr is 0.1dB)
+                    RScan->points[i].intensity = mmwData.sideInfo.snr/10.0;
                 }
             } else { // else just skip side info section if we have not already received and parsed detected obj list
                 currentDatap += tlvLen;

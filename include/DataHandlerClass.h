@@ -3,6 +3,7 @@
 
 #include <ti_mmwave_rospkg/RadarScan.h>
 #include "mmWave.h"
+#include "point_types.h"
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>

@@ -213,7 +213,7 @@ add_dependencies(mmwave ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TA
 # )
 set (CMAKE_CXX_STANDARD 11)
 
-add_executable(${PROJECT_NAME} src/mmWaveLoader.cpp)
+add_executable(${PROJECT_NAME} src/mmWaveLoader.cpp include/point_types.h)
 target_link_libraries(mmwave ${serial_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} mmwave ${serial_LIBRARIES})
 add_dependencies(${PROJECT_NAME} ${catkin_EXPORTED_TARGETS} mmwave ${serial_EXPORTED_TARGETS})
