@@ -120,7 +120,7 @@ void *DataUARTHandler::readIncomingData(void)
 
         nextBufp->push_back(last8Bytes[7]); //push byte onto buffer
 
-        //ROS_INFO("DataUARTHandler Read Thread: last8bytes = %02x%02x %02x%02x %02x%02x %02x%02x",  last8Bytes[7], last8Bytes[6], last8Bytes[5], last8Bytes[4], last8Bytes[3], last8Bytes[2], last8Bytes[1], last8Bytes[0]);
+        // ROS_INFO("DataUARTHandler Read Thread: last8bytes = %02x%02x %02x%02x %02x%02x %02x%02x",  last8Bytes[7], last8Bytes[6], last8Bytes[5], last8Bytes[4], last8Bytes[3], last8Bytes[2], last8Bytes[1], last8Bytes[0]);
 
         /*If a magicWord is found wait for sorting to finish and switch buffers*/
         if( isMagicWord(last8Bytes) )
@@ -234,434 +234,430 @@ void *DataUARTHandler::sortIncomingData( void )
 
     pthread_mutex_lock(&currentBufp_mutex);
 
-    while(ros::ok())
-    {
+    while(ros::ok()) {
+        switch(sorterState) {
 
-        switch(sorterState)
-        {
+            case READ_HEADER:
+                //init variables
+                mmwData.numObjOut = 0;
 
-        case READ_HEADER:
-            
-            //init variables
-            mmwData.numObjOut = 0;
+                //make sure packet has at least first three fields (12 bytes) before we read them (does not include magicWord since it was already removed)
+                if(currentBufp->size() < 12) {
+                    sorterState = SWAP_BUFFERS;
+                    break;
+                }
 
-            //make sure packet has at least first three fields (12 bytes) before we read them (does not include magicWord since it was already removed)
-            if(currentBufp->size() < 12) {
-                sorterState = SWAP_BUFFERS;
+                //get version (4 bytes)
+                memcpy(&mmwData.header.version, &currentBufp->at(currentDatap), sizeof(mmwData.header.version));
+                currentDatap += (sizeof(mmwData.header.version));
+
+                //get totalPacketLen (4 bytes)
+                memcpy( &mmwData.header.totalPacketLen, &currentBufp->at(currentDatap), sizeof(mmwData.header.totalPacketLen));
+                currentDatap += (sizeof(mmwData.header.totalPacketLen));
+
+                //get platform (4 bytes)
+                memcpy( &mmwData.header.platform, &currentBufp->at(currentDatap), sizeof(mmwData.header.platform));
+                currentDatap += ( sizeof(mmwData.header.platform) );
+
+                //if packet doesn't have correct header size (which is based on platform), throw it away
+                //  (does not include magicWord since it was already removed)
+
+                if ((mmwData.header.platform & 0xFFFF) == 0x1443) {
+                    headerSize = 7 * 4;  // xWR1443 SDK demo header does not have subFrameNumber field
+                } else {
+                    headerSize = 8 * 4;  // header includes subFrameNumber field
+                }
+
+                if(currentBufp->size() < headerSize) {
+                    sorterState = SWAP_BUFFERS;
+                    break;
+                }
+
+                //get frameNumber (4 bytes)
+                memcpy( &mmwData.header.frameNumber, &currentBufp->at(currentDatap), sizeof(mmwData.header.frameNumber));
+                currentDatap += ( sizeof(mmwData.header.frameNumber));
+
+                //get timeCpuCycles (4 bytes)
+                memcpy( &mmwData.header.timeCpuCycles, &currentBufp->at(currentDatap), sizeof(mmwData.header.timeCpuCycles));
+                currentDatap += ( sizeof(mmwData.header.timeCpuCycles));
+
+                //get numDetectedObj (4 bytes)
+                memcpy( &mmwData.header.numDetectedObj, &currentBufp->at(currentDatap), sizeof(mmwData.header.numDetectedObj));
+                currentDatap += ( sizeof(mmwData.header.numDetectedObj));
+
+                //get numTLVs (4 bytes)
+                memcpy( &mmwData.header.numTLVs, &currentBufp->at(currentDatap), sizeof(mmwData.header.numTLVs));
+                currentDatap += ( sizeof(mmwData.header.numTLVs));
+
+                //get subFrameNumber (4 bytes) (not used for XWR1443)
+                if((mmwData.header.platform & 0xFFFF) != 0x1443) {
+                    memcpy( &mmwData.header.subFrameNumber, &currentBufp->at(currentDatap), sizeof(mmwData.header.subFrameNumber));
+                    currentDatap += ( sizeof(mmwData.header.subFrameNumber) );
+                }
+
+                //if packet lengths do not match, throw it away
+                if(mmwData.header.totalPacketLen == currentBufp->size()) {
+                    sorterState = CHECK_TLV_TYPE;
+                } else {
+                    sorterState = SWAP_BUFFERS;
+                }
                 break;
-            }
 
-            //get version (4 bytes)
-            memcpy(&mmwData.header.version, &currentBufp->at(currentDatap), sizeof(mmwData.header.version));
-            currentDatap += (sizeof(mmwData.header.version));
+            case READ_OBJ_STRUCT:
+                // CHECK_TLV_TYPE code has already read tlvType and tlvLen
 
-            //get totalPacketLen (4 bytes)
-            memcpy( &mmwData.header.totalPacketLen, &currentBufp->at(currentDatap), sizeof(mmwData.header.totalPacketLen));
-            currentDatap += (sizeof(mmwData.header.totalPacketLen));
+                i = 0;
 
-            //get platform (4 bytes)
-            memcpy( &mmwData.header.platform, &currentBufp->at(currentDatap), sizeof(mmwData.header.platform));
-            currentDatap += ( sizeof(mmwData.header.platform) );
-
-            //if packet doesn't have correct header size (which is based on platform), throw it away
-            //  (does not include magicWord since it was already removed)
-
-            if ((mmwData.header.platform & 0xFFFF) == 0x1443) {
-                headerSize = 7 * 4;  // xWR1443 SDK demo header does not have subFrameNumber field
-            } else {
-                headerSize = 8 * 4;  // header includes subFrameNumber field
-            }
-
-            if(currentBufp->size() < headerSize) {
-                sorterState = SWAP_BUFFERS;
-                break;
-            }
-
-            //get frameNumber (4 bytes)
-            memcpy( &mmwData.header.frameNumber, &currentBufp->at(currentDatap), sizeof(mmwData.header.frameNumber));
-            currentDatap += ( sizeof(mmwData.header.frameNumber));
-
-            //get timeCpuCycles (4 bytes)
-            memcpy( &mmwData.header.timeCpuCycles, &currentBufp->at(currentDatap), sizeof(mmwData.header.timeCpuCycles));
-            currentDatap += ( sizeof(mmwData.header.timeCpuCycles));
-
-            //get numDetectedObj (4 bytes)
-            memcpy( &mmwData.header.numDetectedObj, &currentBufp->at(currentDatap), sizeof(mmwData.header.numDetectedObj));
-            currentDatap += ( sizeof(mmwData.header.numDetectedObj));
-
-            //get numTLVs (4 bytes)
-            memcpy( &mmwData.header.numTLVs, &currentBufp->at(currentDatap), sizeof(mmwData.header.numTLVs));
-            currentDatap += ( sizeof(mmwData.header.numTLVs));
-
-            //get subFrameNumber (4 bytes) (not used for XWR1443)
-            if((mmwData.header.platform & 0xFFFF) != 0x1443) {
-                memcpy( &mmwData.header.subFrameNumber, &currentBufp->at(currentDatap), sizeof(mmwData.header.subFrameNumber));
-                currentDatap += ( sizeof(mmwData.header.subFrameNumber) );
-            }
-
-            //if packet lengths do not match, throw it away
-            if(mmwData.header.totalPacketLen == currentBufp->size()) {
-                sorterState = CHECK_TLV_TYPE;
-            } else {
-                sorterState = SWAP_BUFFERS;
-            }
-            break;
-
-        case READ_OBJ_STRUCT:
-            // CHECK_TLV_TYPE code has already read tlvType and tlvLen
-
-            i = 0;
-
-            if (((mmwData.header.version >> 24) & 0xFF) < 3) { // SDK version is older than 3.x
-                // Get number of objects
-                memcpy( &mmwData.numObjOut, &currentBufp->at(currentDatap), sizeof(mmwData.numObjOut));
-                currentDatap += ( sizeof(mmwData.numObjOut) );
-
-                // Get xyzQFormat
-                memcpy( &mmwData.xyzQFormat, &currentBufp->at(currentDatap), sizeof(mmwData.xyzQFormat));
-                currentDatap += ( sizeof(mmwData.xyzQFormat) );
-            } else { // SDK version is at least 3.x
-                mmwData.numObjOut = mmwData.header.numDetectedObj;
-            }
-
-            // RScan->header.seq = 0;
-            // RScan->header.stamp = (uint64_t)(ros::Time::now());
-            // RScan->header.stamp = (uint32_t) mmwData.header.timeCpuCycles;
-            RScan->header.frame_id = frameID;
-            RScan->height = 1;
-            RScan->width = mmwData.numObjOut;
-            RScan->is_dense = 1;
-            RScan->points.resize(RScan->width * RScan->height);
-
-            // Calculate ratios for max desired elevation and azimuth angles
-            if ((maxAllowedElevationAngleDeg >= 0) && (maxAllowedElevationAngleDeg < 90)) {
-                maxElevationAngleRatioSquared = tan(maxAllowedElevationAngleDeg * M_PI / 180.0);
-                maxElevationAngleRatioSquared = maxElevationAngleRatioSquared * maxElevationAngleRatioSquared;
-            } else {
-                maxElevationAngleRatioSquared = -1;
-            }
-
-            if ((maxAllowedAzimuthAngleDeg >= 0) && (maxAllowedAzimuthAngleDeg < 90)) {
-                maxAzimuthAngleRatio = tan(maxAllowedAzimuthAngleDeg * M_PI / 180.0);
-            } else {
-                maxAzimuthAngleRatio = -1;
-            }
-
-            //ROS_INFO("maxElevationAngleRatioSquared = %f", maxElevationAngleRatioSquared);
-            //ROS_INFO("maxAzimuthAngleRatio = %f", maxAzimuthAngleRatio);
-            //ROS_INFO("mmwData.numObjOut before = %d", mmwData.numObjOut);
-
-            // Populate pointcloud
-            while( i < mmwData.numObjOut ) {
                 if (((mmwData.header.version >> 24) & 0xFF) < 3) { // SDK version is older than 3.x
-                    //get object range index
-                    memcpy( &mmwData.objOut.rangeIdx, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.rangeIdx));
-                    currentDatap += ( sizeof(mmwData.objOut.rangeIdx) );
+                    // Get number of objects
+                    memcpy( &mmwData.numObjOut, &currentBufp->at(currentDatap), sizeof(mmwData.numObjOut));
+                    currentDatap += ( sizeof(mmwData.numObjOut) );
 
-                    //get object doppler index
-                    memcpy( &mmwData.objOut.dopplerIdx, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.dopplerIdx));
-                    currentDatap += ( sizeof(mmwData.objOut.dopplerIdx) );
-
-                    //get object peak intensity value
-                    memcpy( &mmwData.objOut.peakVal, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.peakVal));
-                    currentDatap += ( sizeof(mmwData.objOut.peakVal) );
-
-                    //get object x-coordinate
-                    memcpy( &mmwData.objOut.x, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.x));
-                    currentDatap += ( sizeof(mmwData.objOut.x) );
-
-                    //get object y-coordinate
-                    memcpy( &mmwData.objOut.y, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.y));
-                    currentDatap += ( sizeof(mmwData.objOut.y) );
-
-                    //get object z-coordinate
-                    memcpy( &mmwData.objOut.z, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.z));
-                    currentDatap += ( sizeof(mmwData.objOut.z) );
-
-                    float temp[8];
-
-                    temp[0] = (float) mmwData.objOut.x;
-                    temp[1] = (float) mmwData.objOut.y;
-                    temp[2] = (float) mmwData.objOut.z;
-                    temp[3] = (float) mmwData.objOut.dopplerIdx;
-
-                    for (int j = 0; j < 4; j++) {
-                        if (temp[j] > 32767) temp[j] -= 65536;
-                        if (j < 3) temp[j] = temp[j] / pow(2 , mmwData.xyzQFormat);
-                    }
-
-                    temp[7] = temp[3] * vvel;
-
-                    temp[4] = (float) mmwData.objOut.rangeIdx * vrange;
-                    temp[5] = 10 * log10(mmwData.objOut.peakVal + 1);  // intensity
-                    temp[6] = std::atan2(-temp[0], temp[1]) / M_PI * 180;
-
-                    uint16_t tmp = (uint16_t)(temp[3] + nd / 2);
-
-                    // Map mmWave sensor coordinates to ROS coordinate system
-                    RScan->points[i].x = temp[1];   // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
-                    RScan->points[i].y = -temp[0];  // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
-                    RScan->points[i].z = temp[2];   // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
-                    RScan->points[i].intensity = temp[5];
-
-                    radarscan.header.frame_id = frameID;
-                    radarscan.header.stamp = ros::Time::now();
-
-                    radarscan.point_id = i;
-                    radarscan.x = temp[1];
-                    radarscan.y = -temp[0];
-                    radarscan.z = temp[2];
-                    radarscan.range = temp[4];
-                    radarscan.velocity = temp[7];
-                    radarscan.doppler_bin = tmp;
-                    radarscan.bearing = temp[6];
-                    radarscan.intensity = temp[5];
-                } else { // SDK version is 3.x+
-                    //get object x-coordinate (meters)
-                    memcpy(&mmwData.objOut_cartes.x, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.x));
-                    currentDatap += (sizeof(mmwData.objOut_cartes.x));
-
-                    //get object y-coordinate (meters)
-                    memcpy(&mmwData.objOut_cartes.y, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.y));
-                    currentDatap += (sizeof(mmwData.objOut_cartes.y));
-
-                    //get object z-coordinate (meters)
-                    memcpy(&mmwData.objOut_cartes.z, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.z));
-                    currentDatap += (sizeof(mmwData.objOut_cartes.z));
-
-                    //get object velocity (m/s)
-                    memcpy(&mmwData.objOut_cartes.velocity, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.velocity));
-                    currentDatap += (sizeof(mmwData.objOut_cartes.velocity));
-
-                    // Map mmWave sensor coordinates to ROS coordinate system
-                    RScan->points[i].x = mmwData.objOut_cartes.y; // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
-                    RScan->points[i].y = -mmwData.objOut_cartes.x; // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
-                    RScan->points[i].z = mmwData.objOut_cartes.z; // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
-                    RScan->points[i].velocity = mmwData.objOut_cartes.velocity;
-                    RScan->points[i].range = sqrt(radarscan.x*radarscan.x +
-                                                  radarscan.y*radarscan.y +
-                                                  radarscan.z*radarscan.z);
-
-                    radarscan.header.frame_id = frameID;
-                    radarscan.header.stamp = ros::Time::now();
-
-                    radarscan.point_id = i;
-                    radarscan.x = mmwData.objOut_cartes.y;
-                    radarscan.y = -mmwData.objOut_cartes.x;
-                    radarscan.z = mmwData.objOut_cartes.z;
-                    radarscan.range = sqrt(radarscan.x*radarscan.x +
-                                           radarscan.y*radarscan.y +
-                                           radarscan.z*radarscan.z);
-
-                    radarscan.velocity = mmwData.objOut_cartes.velocity;
-                    radarscan.doppler_bin = (uint16_t)(mmwData.detList.dopplerIdx + nd/2);
-                    radarscan.bearing = std::atan2(-mmwData.objOut_cartes.x, mmwData.objOut_cartes.y)/M_PI*180;
-                    radarscan.intensity = (float)mmwData.sideInfo.snr/10.0;
-
-
-                    // For SDK 3.x, intensity is replaced by snr in sideInfo and is parsed in the READ_SIDE_INFO code
+                    // Get xyzQFormat
+                    memcpy( &mmwData.xyzQFormat, &currentBufp->at(currentDatap), sizeof(mmwData.xyzQFormat));
+                    currentDatap += ( sizeof(mmwData.xyzQFormat) );
+                } else { // SDK version is at least 3.x
+                    mmwData.numObjOut = mmwData.header.numDetectedObj;
                 }
 
-                // WTFFF???
-                if (((maxElevationAngleRatioSquared == -1) ||
-                             (((RScan->points[i].z * RScan->points[i].z) / (RScan->points[i].x * RScan->points[i].x +
-                                                                            RScan->points[i].y * RScan->points[i].y)
-                              ) < maxElevationAngleRatioSquared)
-                            ) &&
-                            ((maxAzimuthAngleRatio == -1) || (fabs(RScan->points[i].y / RScan->points[i].x) < maxAzimuthAngleRatio)) &&
-                                    (RScan->points[i].x != 0)
-                           )
-                {
-                    radar_scan_pub.publish(radarscan);
+                // RScan->header.seq = 0;
+                // RScan->header.stamp = (uint64_t)(ros::Time::now());
+                // RScan->header.stamp = (uint32_t) mmwData.header.timeCpuCycles;
+                RScan->header.frame_id = frameID;
+                RScan->height = 1;
+                RScan->width = mmwData.numObjOut;
+                RScan->is_dense = 1;
+                RScan->points.resize(RScan->width * RScan->height);
+
+                // Calculate ratios for max desired elevation and azimuth angles
+                if ((maxAllowedElevationAngleDeg >= 0) && (maxAllowedElevationAngleDeg < 90)) {
+                    maxElevationAngleRatioSquared = tan(maxAllowedElevationAngleDeg * M_PI / 180.0);
+                    maxElevationAngleRatioSquared = maxElevationAngleRatioSquared * maxElevationAngleRatioSquared;
+                } else {
+                    maxElevationAngleRatioSquared = -1;
                 }
-                i++;
-            }
 
-            sorterState = CHECK_TLV_TYPE;
-
-            break;
-
-        case READ_SIDE_INFO:
-            // Make sure we already received and parsed detected obj list (READ_OBJ_STRUCT)
-            if (mmwData.numObjOut > 0) {
-                for (i = 0; i < mmwData.numObjOut; i++) {
-                    //get snr (unit is 0.1 steps of dB)
-                    memcpy( &mmwData.sideInfo.snr, &currentBufp->at(currentDatap), sizeof(mmwData.sideInfo.snr));
-                    currentDatap += ( sizeof(mmwData.sideInfo.snr) );
-
-                    //get noise (unit is 0.1 steps of dB)
-                    memcpy( &mmwData.sideInfo.noise, &currentBufp->at(currentDatap), sizeof(mmwData.sideInfo.noise));
-                    currentDatap += ( sizeof(mmwData.sideInfo.noise) );
-
-                    // Use snr for "intensity" field (divide by 10 since unit of snr is 0.1dB)
-                    RScan->points[i].intensity = mmwData.sideInfo.snr/10.0;
+                if ((maxAllowedAzimuthAngleDeg >= 0) && (maxAllowedAzimuthAngleDeg < 90)) {
+                    maxAzimuthAngleRatio = tan(maxAllowedAzimuthAngleDeg * M_PI / 180.0);
+                } else {
+                    maxAzimuthAngleRatio = -1;
                 }
-            } else { // else just skip side info section if we have not already received and parsed detected obj list
-                currentDatap += tlvLen;
-            }
 
-            sorterState = CHECK_TLV_TYPE;
+                //ROS_INFO("maxElevationAngleRatioSquared = %f", maxElevationAngleRatioSquared);
+                //ROS_INFO("maxAzimuthAngleRatio = %f", maxAzimuthAngleRatio);
+                //ROS_INFO("mmwData.numObjOut before = %d", mmwData.numObjOut);
 
-            break;
+                // Populate pointcloud
+                while( i < mmwData.numObjOut ) {
+                    if (((mmwData.header.version >> 24) & 0xFF) < 3) { // SDK version is older than 3.x
+                        //get object range index
+                        memcpy( &mmwData.objOut.rangeIdx, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.rangeIdx));
+                        currentDatap += ( sizeof(mmwData.objOut.rangeIdx) );
 
-        case READ_LOG_MAG_RANGE:
-            sorterState = CHECK_TLV_TYPE;
-            break;
+                        //get object doppler index
+                        memcpy( &mmwData.objOut.dopplerIdx, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.dopplerIdx));
+                        currentDatap += ( sizeof(mmwData.objOut.dopplerIdx) );
 
-        case READ_NOISE:
-            currentDatap += tlvLen;
-            sorterState = CHECK_TLV_TYPE;
-            break;
+                        //get object peak intensity value
+                        memcpy( &mmwData.objOut.peakVal, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.peakVal));
+                        currentDatap += ( sizeof(mmwData.objOut.peakVal) );
 
-        case READ_AZIMUTH:
-            currentDatap += tlvLen;
-            sorterState = CHECK_TLV_TYPE;
-            break;
+                        //get object x-coordinate
+                        memcpy( &mmwData.objOut.x, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.x));
+                        currentDatap += ( sizeof(mmwData.objOut.x) );
 
-        case READ_DOPPLER:
-            currentDatap += tlvLen;
-            sorterState = CHECK_TLV_TYPE;
-            break;
+                        //get object y-coordinate
+                        memcpy( &mmwData.objOut.y, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.y));
+                        currentDatap += ( sizeof(mmwData.objOut.y) );
 
-        case READ_STATS:
-            currentDatap += tlvLen;
-            sorterState = CHECK_TLV_TYPE;
-            break;
+                        //get object z-coordinate
+                        memcpy( &mmwData.objOut.z, &currentBufp->at(currentDatap), sizeof(mmwData.objOut.z));
+                        currentDatap += ( sizeof(mmwData.objOut.z) );
 
-        case CHECK_TLV_TYPE:
-            if(tlvCount++ >= mmwData.header.numTLVs)  // Done parsing all received TLV sections
-            {
-                // Publish detected object pointcloud
-                if (mmwData.numObjOut > 0)
-                {
-                    j = 0;
-                    for (i = 0; i < mmwData.numObjOut; i++)
-                    {
-                        // Keep point if elevation and azimuth angles are less than specified max values
-                        // (NOTE: The following calculations are done using ROS standard coordinate system axis definitions where X is forward and Y is left)
-                        if (((maxElevationAngleRatioSquared == -1) ||
-                             (((RScan->points[i].z * RScan->points[i].z) / (RScan->points[i].x * RScan->points[i].x +
-                                                                            RScan->points[i].y * RScan->points[i].y)
-                              ) < maxElevationAngleRatioSquared)
-                            ) &&
-                            ((maxAzimuthAngleRatio == -1) || (fabs(RScan->points[i].y / RScan->points[i].x) < maxAzimuthAngleRatio)) &&
-                                    (RScan->points[i].x != 0)
-                           )
-                        {
-                            //ROS_INFO("Kept point");
-                            // copy: points[i] => points[j]
-                            memcpy( &RScan->points[j], &RScan->points[i], sizeof(RScan->points[i]));
-                            j++;
+                        float temp[8];
+
+                        temp[0] = (float) mmwData.objOut.x;
+                        temp[1] = (float) mmwData.objOut.y;
+                        temp[2] = (float) mmwData.objOut.z;
+                        temp[3] = (float) mmwData.objOut.dopplerIdx;
+
+                        for (int j = 0; j < 4; j++) {
+                            if (temp[j] > 32767) temp[j] -= 65536;
+                            if (j < 3) temp[j] = temp[j] / pow(2 , mmwData.xyzQFormat);
                         }
+
+                        temp[7] = temp[3] * vvel;
+
+                        temp[4] = (float) mmwData.objOut.rangeIdx * vrange;
+                        temp[5] = 10 * log10(mmwData.objOut.peakVal + 1);  // intensity
+                        temp[6] = std::atan2(-temp[0], temp[1]) / M_PI * 180;
+
+                        uint16_t tmp = (uint16_t)(temp[3] + nd / 2);
+
+                        // Map mmWave sensor coordinates to ROS coordinate system
+                        RScan->points[i].x = temp[1];   // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
+                        RScan->points[i].y = -temp[0];  // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
+                        RScan->points[i].z = temp[2];   // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
+                        RScan->points[i].intensity = temp[5];
+
+                        radarscan.header.frame_id = frameID;
+                        radarscan.header.stamp = ros::Time::now();
+
+                        radarscan.point_id = i;
+                        radarscan.x = temp[1];
+                        radarscan.y = -temp[0];
+                        radarscan.z = temp[2];
+                        radarscan.range = temp[4];
+                        radarscan.velocity = temp[7];
+                        radarscan.doppler_bin = tmp;
+                        radarscan.bearing = temp[6];
+                        radarscan.intensity = temp[5];
+                    } else { // SDK version is 3.x+
+                        //get object x-coordinate (meters)
+                        memcpy(&mmwData.objOut_cartes.x, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.x));
+                        currentDatap += (sizeof(mmwData.objOut_cartes.x));
+
+                        //get object y-coordinate (meters)
+                        memcpy(&mmwData.objOut_cartes.y, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.y));
+                        currentDatap += (sizeof(mmwData.objOut_cartes.y));
+
+                        //get object z-coordinate (meters)
+                        memcpy(&mmwData.objOut_cartes.z, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.z));
+                        currentDatap += (sizeof(mmwData.objOut_cartes.z));
+
+                        //get object velocity (m/s)
+                        memcpy(&mmwData.objOut_cartes.velocity, &currentBufp->at(currentDatap), sizeof(mmwData.objOut_cartes.velocity));
+                        currentDatap += (sizeof(mmwData.objOut_cartes.velocity));
+
+                        // Map mmWave sensor coordinates to ROS coordinate system
+                        RScan->points[i].x = mmwData.objOut_cartes.y; // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
+                        RScan->points[i].y = -mmwData.objOut_cartes.x; // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
+                        RScan->points[i].z = mmwData.objOut_cartes.z; // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
+                        RScan->points[i].velocity = mmwData.objOut_cartes.velocity;
+                        RScan->points[i].range = sqrt(radarscan.x*radarscan.x +
+                                                      radarscan.y*radarscan.y +
+                                                      radarscan.z*radarscan.z);
+
+                        radarscan.header.frame_id = frameID;
+                        radarscan.header.stamp = ros::Time::now();
+
+                        radarscan.point_id = i;
+                        radarscan.x = mmwData.objOut_cartes.y;
+                        radarscan.y = -mmwData.objOut_cartes.x;
+                        radarscan.z = mmwData.objOut_cartes.z;
+                        radarscan.range = sqrt(radarscan.x*radarscan.x +
+                                               radarscan.y*radarscan.y +
+                                               radarscan.z*radarscan.z);
+
+                        radarscan.velocity = mmwData.objOut_cartes.velocity;
+                        radarscan.doppler_bin = (uint16_t)(mmwData.detList.dopplerIdx + nd/2);
+                        radarscan.bearing = std::atan2(-mmwData.objOut_cartes.x, mmwData.objOut_cartes.y)/M_PI*180;
+                        radarscan.intensity = (float)mmwData.sideInfo.snr/10.0;
+
+
+                        // For SDK 3.x, intensity is replaced by snr in sideInfo and is parsed in the READ_SIDE_INFO code
                     }
-                    mmwData.numObjOut = j;  // update number of objects as some points may have been removed
 
-                    // Resize point cloud since some points may have been removed
-                    RScan->width = mmwData.numObjOut;
-                    RScan->points.resize(RScan->width * RScan->height);
-
-                    //ROS_INFO("mmwData.numObjOut after = %d", mmwData.numObjOut);
-                    //ROS_INFO("DataUARTHandler Sort Thread: number of obj = %d", mmwData.numObjOut );
-
-                    DataUARTHandler_pub.publish(RScan);
+                    // WTFFF???
+                    if (((maxElevationAngleRatioSquared == -1) ||
+                                 (((RScan->points[i].z * RScan->points[i].z) / (RScan->points[i].x * RScan->points[i].x +
+                                                                                RScan->points[i].y * RScan->points[i].y)
+                                  ) < maxElevationAngleRatioSquared)
+                                ) &&
+                                ((maxAzimuthAngleRatio == -1) || (fabs(RScan->points[i].y / RScan->points[i].x) < maxAzimuthAngleRatio)) &&
+                                        (RScan->points[i].x != 0)
+                               )
+                    {
+                        radar_scan_pub.publish(radarscan);
+                    }
+                    i++;
                 }
 
-                //ROS_INFO("DataUARTHandler Sort Thread : CHECK_TLV_TYPE state says tlvCount max was reached, going to switch buffer state");
-                sorterState = SWAP_BUFFERS;
-            }
+                sorterState = CHECK_TLV_TYPE;
 
-            else  // More TLV sections to parse
-            {
-               //get tlvType (32 bits) & remove from queue
-                memcpy( &tlvType, &currentBufp->at(currentDatap), sizeof(tlvType));
-                currentDatap += ( sizeof(tlvType) );
+                break;
 
-                //ROS_INFO("DataUARTHandler Sort Thread : sizeof(tlvType) = %d", sizeof(tlvType));
+            case READ_SIDE_INFO:
+                // Make sure we already received and parsed detected obj list (READ_OBJ_STRUCT)
+                if (mmwData.numObjOut > 0) {
+                    for (i = 0; i < mmwData.numObjOut; i++) {
+                        //get snr (unit is 0.1 steps of dB)
+                        memcpy( &mmwData.sideInfo.snr, &currentBufp->at(currentDatap), sizeof(mmwData.sideInfo.snr));
+                        currentDatap += ( sizeof(mmwData.sideInfo.snr) );
 
-                //get tlvLen (32 bits) & remove from queue
-                memcpy( &tlvLen, &currentBufp->at(currentDatap), sizeof(tlvLen));
-                currentDatap += ( sizeof(tlvLen) );
+                        //get noise (unit is 0.1 steps of dB)
+                        memcpy( &mmwData.sideInfo.noise, &currentBufp->at(currentDatap), sizeof(mmwData.sideInfo.noise));
+                        currentDatap += ( sizeof(mmwData.sideInfo.noise) );
 
-                //ROS_INFO("DataUARTHandler Sort Thread : sizeof(tlvLen) = %d", sizeof(tlvLen));
-
-                //ROS_INFO("DataUARTHandler Sort Thread : tlvType = %d, tlvLen = %d", (int) tlvType, tlvLen);
-
-                switch(tlvType) {
-                case MMWDEMO_OUTPUT_MSG_NULL:
-                    break;
-
-                case MMWDEMO_OUTPUT_MSG_DETECTED_POINTS:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Object TLV");
-                    sorterState = READ_OBJ_STRUCT;
-                    break;
-
-                case MMWDEMO_OUTPUT_MSG_RANGE_PROFILE:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Range TLV");
-                    sorterState = READ_LOG_MAG_RANGE;
-                    break;
-
-                case MMWDEMO_OUTPUT_MSG_NOISE_PROFILE:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Noise TLV");
-                    sorterState = READ_NOISE;
-                    break;
-
-                case MMWDEMO_OUTPUT_MSG_AZIMUTH_STATIC_HEAT_MAP:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Azimuth Heat TLV");
-                    sorterState = READ_AZIMUTH;
-                    break;
-
-                case MMWDEMO_OUTPUT_MSG_RANGE_DOPPLER_HEAT_MAP:
-                    //ROS_INFO("DataUARTHandler Sort Thread : R/D Heat TLV");
-                    sorterState = READ_DOPPLER;
-                    break;
-
-                case MMWDEMO_OUTPUT_MSG_STATS:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Stats TLV");
-                    sorterState = READ_STATS;
-                    break;
-
-                case MMWDEMO_OUTPUT_MSG_DETECTED_POINTS_SIDE_INFO:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Side info TLV");
-                    sorterState = READ_SIDE_INFO;
-                    break;
-
-                case MMWDEMO_OUTPUT_MSG_MAX:
-                    //ROS_INFO("DataUARTHandler Sort Thread : Header TLV");
-                    sorterState = READ_HEADER;
-                    break;
-
-                default: break;
+                        // Use snr for "intensity" field (divide by 10 since unit of snr is 0.1dB)
+                        RScan->points[i].intensity = mmwData.sideInfo.snr/10.0;
+                    }
+                } else { // else just skip side info section if we have not already received and parsed detected obj list
+                    currentDatap += tlvLen;
                 }
-            }
 
-        break;
+                sorterState = CHECK_TLV_TYPE;
 
-       case SWAP_BUFFERS:
+                break;
 
-            pthread_mutex_lock(&countSync_mutex);
-            pthread_mutex_unlock(&currentBufp_mutex);
+            case READ_LOG_MAG_RANGE:
+                sorterState = CHECK_TLV_TYPE;
+                break;
 
-            countSync++;
+            case READ_NOISE:
+                currentDatap += tlvLen;
+                sorterState = CHECK_TLV_TYPE;
+                break;
 
-            if(countSync == COUNT_SYNC_MAX)
-            {
-                pthread_cond_signal(&countSync_max_cv);
-            }
+            case READ_AZIMUTH:
+                currentDatap += tlvLen;
+                sorterState = CHECK_TLV_TYPE;
+                break;
 
-            pthread_cond_wait(&sort_go_cv, &countSync_mutex);
+            case READ_DOPPLER:
+                currentDatap += tlvLen;
+                sorterState = CHECK_TLV_TYPE;
+                break;
 
-            pthread_mutex_unlock(&countSync_mutex);
-            pthread_mutex_lock(&currentBufp_mutex);
+            case READ_STATS:
+                currentDatap += tlvLen;
+                sorterState = CHECK_TLV_TYPE;
+                break;
 
-            currentDatap = 0;
-            tlvCount = 0;
+            case CHECK_TLV_TYPE:
+                if(tlvCount++ >= mmwData.header.numTLVs)  // Done parsing all received TLV sections
+                {
+                    // Publish detected object pointcloud
+                    if (mmwData.numObjOut > 0)
+                    {
+                        j = 0;
+                        for (i = 0; i < mmwData.numObjOut; i++)
+                        {
+                            // Keep point if elevation and azimuth angles are less than specified max values
+                            // (NOTE: The following calculations are done using ROS standard coordinate system axis definitions where X is forward and Y is left)
+                            if (((maxElevationAngleRatioSquared == -1) ||
+                                 (((RScan->points[i].z * RScan->points[i].z) / (RScan->points[i].x * RScan->points[i].x +
+                                                                                RScan->points[i].y * RScan->points[i].y)
+                                  ) < maxElevationAngleRatioSquared)
+                                ) &&
+                                ((maxAzimuthAngleRatio == -1) || (fabs(RScan->points[i].y / RScan->points[i].x) < maxAzimuthAngleRatio)) &&
+                                        (RScan->points[i].x != 0)
+                               )
+                            {
+                                //ROS_INFO("Kept point");
+                                // copy: points[i] => points[j]
+                                memcpy( &RScan->points[j], &RScan->points[i], sizeof(RScan->points[i]));
+                                j++;
+                            }
+                        }
+                        mmwData.numObjOut = j;  // update number of objects as some points may have been removed
 
-            sorterState = READ_HEADER;
+                        // Resize point cloud since some points may have been removed
+                        RScan->width = mmwData.numObjOut;
+                        RScan->points.resize(RScan->width * RScan->height);
+
+                        //ROS_INFO("mmwData.numObjOut after = %d", mmwData.numObjOut);
+                        //ROS_INFO("DataUARTHandler Sort Thread: number of obj = %d", mmwData.numObjOut );
+
+                        DataUARTHandler_pub.publish(RScan);
+                    }
+
+                    //ROS_INFO("DataUARTHandler Sort Thread : CHECK_TLV_TYPE state says tlvCount max was reached, going to switch buffer state");
+                    sorterState = SWAP_BUFFERS;
+                }
+
+                else  // More TLV sections to parse
+                {
+                   //get tlvType (32 bits) & remove from queue
+                    memcpy( &tlvType, &currentBufp->at(currentDatap), sizeof(tlvType));
+                    currentDatap += ( sizeof(tlvType) );
+
+                    //ROS_INFO("DataUARTHandler Sort Thread : sizeof(tlvType) = %d", sizeof(tlvType));
+
+                    //get tlvLen (32 bits) & remove from queue
+                    memcpy( &tlvLen, &currentBufp->at(currentDatap), sizeof(tlvLen));
+                    currentDatap += ( sizeof(tlvLen) );
+
+                    //ROS_INFO("DataUARTHandler Sort Thread : sizeof(tlvLen) = %d", sizeof(tlvLen));
+
+                    //ROS_INFO("DataUARTHandler Sort Thread : tlvType = %d, tlvLen = %d", (int) tlvType, tlvLen);
+
+                    switch(tlvType) {
+                    case MMWDEMO_OUTPUT_MSG_NULL:
+                        break;
+
+                    case MMWDEMO_OUTPUT_MSG_DETECTED_POINTS:
+                        //ROS_INFO("DataUARTHandler Sort Thread : Object TLV");
+                        sorterState = READ_OBJ_STRUCT;
+                        break;
+
+                    case MMWDEMO_OUTPUT_MSG_RANGE_PROFILE:
+                        //ROS_INFO("DataUARTHandler Sort Thread : Range TLV");
+                        sorterState = READ_LOG_MAG_RANGE;
+                        break;
+
+                    case MMWDEMO_OUTPUT_MSG_NOISE_PROFILE:
+                        //ROS_INFO("DataUARTHandler Sort Thread : Noise TLV");
+                        sorterState = READ_NOISE;
+                        break;
+
+                    case MMWDEMO_OUTPUT_MSG_AZIMUTH_STATIC_HEAT_MAP:
+                        //ROS_INFO("DataUARTHandler Sort Thread : Azimuth Heat TLV");
+                        sorterState = READ_AZIMUTH;
+                        break;
+
+                    case MMWDEMO_OUTPUT_MSG_RANGE_DOPPLER_HEAT_MAP:
+                        //ROS_INFO("DataUARTHandler Sort Thread : R/D Heat TLV");
+                        sorterState = READ_DOPPLER;
+                        break;
+
+                    case MMWDEMO_OUTPUT_MSG_STATS:
+                        //ROS_INFO("DataUARTHandler Sort Thread : Stats TLV");
+                        sorterState = READ_STATS;
+                        break;
+
+                    case MMWDEMO_OUTPUT_MSG_DETECTED_POINTS_SIDE_INFO:
+                        //ROS_INFO("DataUARTHandler Sort Thread : Side info TLV");
+                        sorterState = READ_SIDE_INFO;
+                        break;
+
+                    case MMWDEMO_OUTPUT_MSG_MAX:
+                        //ROS_INFO("DataUARTHandler Sort Thread : Header TLV");
+                        sorterState = READ_HEADER;
+                        break;
+
+                    default: break;
+                    }
+                }
 
             break;
 
+           case SWAP_BUFFERS:
 
-        default: break;
+                pthread_mutex_lock(&countSync_mutex);
+                pthread_mutex_unlock(&currentBufp_mutex);
+
+                countSync++;
+
+                if(countSync == COUNT_SYNC_MAX)
+                {
+                    pthread_cond_signal(&countSync_max_cv);
+                }
+
+                pthread_cond_wait(&sort_go_cv, &countSync_mutex);
+
+                pthread_mutex_unlock(&countSync_mutex);
+                pthread_mutex_lock(&currentBufp_mutex);
+
+                currentDatap = 0;
+                tlvCount = 0;
+
+                sorterState = READ_HEADER;
+
+                break;
+
+            default:
+                break;
         }
     }
 
