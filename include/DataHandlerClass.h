@@ -23,7 +23,6 @@
 #define COUNT_SYNC_MAX 2
 
 class DataUARTHandler{
-    
 public:
     
     /*Constructor*/
@@ -140,4 +139,4 @@ private:
     ros::Publisher marker_pub;
 };
 
-#endif 
+#endif
