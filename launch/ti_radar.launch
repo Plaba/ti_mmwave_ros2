@@ -18,7 +18,7 @@
   </node>
   
   <!-- mmWaveQuickConfig node (terminates after configuring mmWave sensor) -->
-  <node pkg="ti_mmwave_rospkg" type="mmWaveQuickConfig" name="mmWaveQuickConfig" args="$(find ti_mmwave_rospkg)/cfg/xwr18xx_profile_2d.cfg" output="screen" />
+  <node pkg="ti_mmwave_rospkg" type="mmWaveQuickConfig" name="mmWaveQuickConfig" args="$(find ti_mmwave_rospkg)/cfg/xwr18xx_AOP_profile_allRange_inclclutter.cfg" output="screen" />
 
   <!-- Static transform from map to base_radar_link for visualization of stand-alone mmWave sensor using Rviz -->
   <node pkg="tf2_ros" type="static_transform_publisher" name="static_tf_map_to_base_radar_link" args="0 0.035 0 0 0 0 ti_mmwave camera"/>
