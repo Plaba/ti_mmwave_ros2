@@ -323,7 +323,7 @@ void *DataUARTHandler::sortIncomingData( void )
                 RScan->header.seq = 0;
 
                 // Get time
-                RScan->header.stamp = ros::Time::now().toNSec();
+                RScan->header.stamp = ros::Time::now().toSec();
 
                 RScan->header.frame_id = frameID;
                 RScan->height = 1;
