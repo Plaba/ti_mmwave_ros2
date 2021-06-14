@@ -3,6 +3,7 @@
 
 #include <ti_mmwave_rospkg/RadarScan.h>
 #include "mmWave.h"
+#include "point_types.h"
 #include <iostream>
 #include <cstdio>
 #include <cstdlib>
@@ -22,7 +23,6 @@
 #define COUNT_SYNC_MAX 2
 
 class DataUARTHandler{
-    
 public:
     
     /*Constructor*/
@@ -139,4 +139,4 @@ private:
     ros::Publisher marker_pub;
 };
 
-#endif 
+#endif

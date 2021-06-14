@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(ti_mmwave_rospkg)
 
-## Add support for C++11, supported in ROS Kinetic and newer
- add_definitions(-std=c++11)
+# Set target C++ standard and required compiler features
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -18,13 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(Boost REQUIRED)
-
 find_package(Threads REQUIRED)
-
-# Set target C++ standard and required compiler features
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 find_package(PCL 1.7.2 REQUIRED)
 
 ## System dependencies are found with CMake's conventions
@@ -118,7 +113,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES mmwave
-  #CATKIN_DEPENDS nodelet roscpp serial std_msgs
+  CATKIN_DEPENDS nodelet roscpp serial std_msgs
   DEPENDS system_lib
 )
 
@@ -213,7 +208,7 @@ add_dependencies(mmwave ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TA
 # )
 set (CMAKE_CXX_STANDARD 11)
 
-add_executable(${PROJECT_NAME} src/mmWaveLoader.cpp)
+add_executable(${PROJECT_NAME} src/mmWaveLoader.cpp include/point_types.h)
 target_link_libraries(mmwave ${serial_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} mmwave ${serial_LIBRARIES})
 add_dependencies(${PROJECT_NAME} ${catkin_EXPORTED_TARGETS} mmwave ${serial_EXPORTED_TARGETS})
