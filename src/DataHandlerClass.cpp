@@ -228,6 +228,10 @@ void *DataUARTHandler::syncedBufferSwap(void)
     
 }
 
+bool DataUARTHandler::thresholdRange(const float& x, const float& y, const float& z, const float threshold = 0.0){
+    return ((pow(x,x)+pow(y,y)+pow(z,z)) > threshold);
+}
+
 void *DataUARTHandler::sortIncomingData( void )
 {
     MmwDemo_Output_TLV_Types tlvType = MMWDEMO_OUTPUT_MSG_NULL;
@@ -433,7 +437,7 @@ void *DataUARTHandler::sortIncomingData( void )
                     radarscan.velocity = temp[7];
                     radarscan.doppler_bin = tmp;
                     radarscan.bearing = temp[6];
-                    radarscan.intensity = temp[5];
+                    radarscan.intensity = temp[5];               
                 } else { // SDK version is 3.x+
                     //get object x-coordinate (meters)
                     memcpy( &mmwData.newObjOut.x, &currentBufp->at(currentDatap), sizeof(mmwData.newObjOut.x));
@@ -452,25 +456,27 @@ void *DataUARTHandler::sortIncomingData( void )
                     currentDatap += ( sizeof(mmwData.newObjOut.velocity) );
 
                     // Map mmWave sensor coordinates to ROS coordinate system
-                    RScan->points[i].x = mmwData.newObjOut.y;   // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
-                    RScan->points[i].y = -mmwData.newObjOut.x;  // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
-                    RScan->points[i].z = mmwData.newObjOut.z;   // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
+                    if(DataUARTHandler::thresholdRange( mmwData.newObjOut.y, mmwData.newObjOut.x, mmwData.newObjOut.z, 0.0)) {
+                        RScan->points[i].x = mmwData.newObjOut.y;   // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
+                        RScan->points[i].y = -mmwData.newObjOut.x;  // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
+                        RScan->points[i].z = mmwData.newObjOut.z;   // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
 
-                    radarscan.header.frame_id = frameID;
-                    radarscan.header.stamp = ros::Time::now();
+                        radarscan.header.frame_id = frameID;
+                        radarscan.header.stamp = ros::Time::now();
 
-                    radarscan.point_id = i;
-                    radarscan.x = mmwData.newObjOut.y;
-                    radarscan.y = -mmwData.newObjOut.x;
-                    radarscan.z = mmwData.newObjOut.z;
-                    // radarscan.range = temp[4];
-                    radarscan.velocity = mmwData.newObjOut.velocity;
-                    // radarscan.doppler_bin = tmp;
-                    // radarscan.bearing = temp[6];
-                    // radarscan.intensity = temp[5];
-                    
+                        radarscan.point_id = i;
+                        radarscan.x = mmwData.newObjOut.y;
+                        radarscan.y = -mmwData.newObjOut.x;
+                        radarscan.z = mmwData.newObjOut.z;
+                        // radarscan.range = temp[4];
+                        radarscan.velocity = mmwData.newObjOut.velocity;
+                        // radarscan.doppler_bin = tmp;
+                        // radarscan.bearing = temp[6];
+                        // radarscan.intensity = temp[5];
+                        
 
-                    // For SDK 3.x, intensity is replaced by snr in sideInfo and is parsed in the READ_SIDE_INFO code
+                        // For SDK 3.x, intensity is replaced by snr in sideInfo and is parsed in the READ_SIDE_INFO code
+                    }
                 }
 
                 if (((maxElevationAngleRatioSquared == -1) ||

@@ -129,6 +129,8 @@ private:
     
     /*Sort incoming UART Data Thread*/
     void *sortIncomingData(void);
+
+    bool thresholdRange(const float& x, const float& y, const float& z, const float theshold);
     
     void visualize(const ti_mmwave_rospkg::RadarScan &msg);
 
