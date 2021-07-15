@@ -4,7 +4,7 @@
 #include <fstream>
 #include <stdio.h>
 #include <regex>
-#include "ParameterParser.h"
+#include "ti_mmwave_rospkg/ParameterParser.h"
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "mmWaveQuickConfig");
