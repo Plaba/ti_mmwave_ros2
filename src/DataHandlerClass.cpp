@@ -2,8 +2,6 @@
 
 DataUARTHandler::DataUARTHandler(ros::NodeHandle* nh) : currentBufp(&pingPongBuffers[0]) , nextBufp(&pingPongBuffers[1]) {
     DataUARTHandler_pub = nh->advertise<sensor_msgs::PointCloud2>("/ti_mmwave/radar_scan_pcl", 100);
-    radar_scan_pub = nh->advertise<ti_mmwave_rospkg::RadarScan>("/ti_mmwave/radar_scan", 100);
-    marker_pub = nh->advertise<visualization_msgs::Marker>("/ti_mmwave/radar_scan_markers", 100);
     maxAllowedElevationAngleDeg = 90; // Use max angle if none specified
     maxAllowedAzimuthAngleDeg = 90; // Use max angle if none specified
 
@@ -357,9 +355,9 @@ void *DataUARTHandler::sortIncomingData( void )
                     currentDatap += (sizeof(mmwData.objOut_cartes.velocity));
 
                     // Map mmWave sensor coordinates to ROS coordinate system
-                    RScan->points[i].x = mmwData.objOut_cartes.y; // ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
-                    RScan->points[i].y = -mmwData.objOut_cartes.x; // ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
-                    RScan->points[i].z = mmwData.objOut_cartes.z; // ROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
+                    RScan->points[i].x = mmwData.objOut_cartes.z; //zy ROS standard coordinate system X-axis is forward which is the mmWave sensor Y-axis
+                    RScan->points[i].y = mmwData.objOut_cartes.x; //x-x ROS standard coordinate system Y-axis is left which is the mmWave sensor -(X-axis)
+                    RScan->points[i].z = mmwData.objOut_cartes.y; //y zROS standard coordinate system Z-axis is up which is the same as mmWave sensor Z-axis
                     RScan->points[i].velocity = mmwData.objOut_cartes.velocity;
                     RScan->points[i].range = sqrt(RScan->points[i].x*RScan->points[i].x +
                                                   RScan->points[i].y*RScan->points[i].y +
@@ -628,33 +626,33 @@ void* DataUARTHandler::syncedBufferSwap_helper(void *context)
     return (static_cast<DataUARTHandler*>(context)->syncedBufferSwap());
 }
 
-void DataUARTHandler::visualize(const ti_mmwave_rospkg::RadarScan &msg){
-    visualization_msgs::Marker marker;
+// void DataUARTHandler::visualize(const ti_mmwave_rospkg::RadarScan &msg){
+//     visualization_msgs::Marker marker;
 
-    marker.header.frame_id = frameID;
-    marker.header.stamp = ros::Time::now();
-    marker.id = msg.point_id;
-    marker.type = visualization_msgs::Marker::SPHERE;
-    marker.lifetime = ros::Duration(tfr);
-    marker.action = marker.ADD;
+//     marker.header.frame_id = frameID;
+//     marker.header.stamp = ros::Time::now();
+//     marker.id = msg.point_id;
+//     marker.type = visualization_msgs::Marker::SPHERE;
+//     marker.lifetime = ros::Duration(tfr);
+//     marker.action = marker.ADD;
 
-    marker.pose.position.x = msg.x;
-    marker.pose.position.y = msg.y;
-    marker.pose.position.z = 0;
+//     marker.pose.position.x = msg.x;
+//     marker.pose.position.y = msg.y;
+//     marker.pose.position.z = 0;
 
-    marker.pose.orientation.x = 0;
-    marker.pose.orientation.y = 0;
-    marker.pose.orientation.z = 0;
-    marker.pose.orientation.w = 0;
+//     marker.pose.orientation.x = 0;
+//     marker.pose.orientation.y = 0;
+//     marker.pose.orientation.z = 0;
+//     marker.pose.orientation.w = 0;
 
-    marker.scale.x = .03;
-    marker.scale.y = .03;
-    marker.scale.z = .03;
+//     marker.scale.x = .03;
+//     marker.scale.y = .03;
+//     marker.scale.z = .03;
 
-    marker.color.a = 1;
-    marker.color.r = (int) 255 * msg.intensity;
-    marker.color.g = (int) 255 * msg.intensity;
-    marker.color.b = 1;
+//     marker.color.a = 1;
+//     marker.color.r = (int) 255 * msg.intensity;
+//     marker.color.g = (int) 255 * msg.intensity;
+//     marker.color.b = 1;
 
-    marker_pub.publish(marker);
-}
+//     marker_pub.publish(marker);
+// }
