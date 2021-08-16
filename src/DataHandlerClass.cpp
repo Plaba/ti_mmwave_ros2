@@ -452,7 +452,7 @@ void *DataUARTHandler::sortIncomingData( void )
 
                         //ROS_INFO("mmwData.numObjOut after = %d", mmwData.numObjOut);
                         //ROS_INFO("DataUARTHandler Sort Thread: number of obj = %d", mmwData.numObjOut );
-
+                        
                         DataUARTHandler_pub.publish(RScan);
                     }
 
