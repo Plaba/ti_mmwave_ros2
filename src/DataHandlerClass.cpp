@@ -118,13 +118,9 @@ void *DataUARTHandler::readIncomingData(void)
 
         nextBufp->push_back(last8Bytes[7]); //push byte onto buffer
 
-        // ROS_INFO("DataUARTHandler Read Thread: last8bytes = %02x%02x %02x%02x %02x%02x %02x%02x",  last8Bytes[7], last8Bytes[6], last8Bytes[5], last8Bytes[4], last8Bytes[3], last8Bytes[2], last8Bytes[1], last8Bytes[0]);
-
         /*If a magicWord is found wait for sorting to finish and switch buffers*/
         if( isMagicWord(last8Bytes) )
         {
-            //ROS_INFO("Found magic word");
-
             /*Lock countSync Mutex while unlocking nextBufp so that the swap thread can use it*/
             pthread_mutex_lock(&countSync_mutex);
             pthread_mutex_unlock(&nextBufp_mutex);
@@ -256,9 +252,6 @@ void *DataUARTHandler::sortIncomingData( void )
                 memcpy( &mmwData.header.platform, &currentBufp->at(currentDatap), sizeof(mmwData.header.platform));
                 currentDatap += ( sizeof(mmwData.header.platform) );
 
-                //if packet doesn't have correct header size (which is based on platform), throw it away
-                //  (does not include magicWord since it was already removed)
-
                 if ((mmwData.header.platform & 0xFFFF) == 0x1443) {
                     headerSize = 7 * 4;  // xWR1443 SDK demo header does not have subFrameNumber field
                 } else {
@@ -331,10 +324,6 @@ void *DataUARTHandler::sortIncomingData( void )
                 } else {
                     maxAzimuthAngleRatio = -1;
                 }
-
-                //ROS_INFO("maxElevationAngleRatioSquared = %f", maxElevationAngleRatioSquared);
-                //ROS_INFO("maxAzimuthAngleRatio = %f", maxAzimuthAngleRatio);
-                //ROS_INFO("mmwData.numObjOut before = %d", mmwData.numObjOut);
 
                 // Populate pointcloud
                 while( i < mmwData.numObjOut ) {
@@ -438,8 +427,6 @@ void *DataUARTHandler::sortIncomingData( void )
                                         (RScan->points[i].x != 0)
                                )
                             {
-                                //ROS_INFO("Kept point");
-                                // copy: points[i] => points[j]
                                 memcpy( &RScan->points[j], &RScan->points[i], sizeof(RScan->points[i]));
                                 j++;
                             }
@@ -450,13 +437,9 @@ void *DataUARTHandler::sortIncomingData( void )
                         RScan->width = mmwData.numObjOut;
                         RScan->points.resize(RScan->width * RScan->height);
 
-                        //ROS_INFO("mmwData.numObjOut after = %d", mmwData.numObjOut);
-                        //ROS_INFO("DataUARTHandler Sort Thread: number of obj = %d", mmwData.numObjOut );
-                        
                         DataUARTHandler_pub.publish(RScan);
                     }
 
-                    //ROS_INFO("DataUARTHandler Sort Thread : CHECK_TLV_TYPE state says tlvCount max was reached, going to switch buffer state");
                     sorterState = SWAP_BUFFERS;
                 }
 
@@ -466,57 +449,43 @@ void *DataUARTHandler::sortIncomingData( void )
                     memcpy( &tlvType, &currentBufp->at(currentDatap), sizeof(tlvType));
                     currentDatap += ( sizeof(tlvType) );
 
-                    //ROS_INFO("DataUARTHandler Sort Thread : sizeof(tlvType) = %d", sizeof(tlvType));
-
                     //get tlvLen (32 bits) & remove from queue
                     memcpy( &tlvLen, &currentBufp->at(currentDatap), sizeof(tlvLen));
                     currentDatap += ( sizeof(tlvLen) );
-
-                    //ROS_INFO("DataUARTHandler Sort Thread : sizeof(tlvLen) = %d", sizeof(tlvLen));
-
-                    //ROS_INFO("DataUARTHandler Sort Thread : tlvType = %d, tlvLen = %d", (int) tlvType, tlvLen);
 
                     switch(tlvType) {
                     case MMWDEMO_OUTPUT_MSG_NULL:
                         break;
 
                     case MMWDEMO_OUTPUT_MSG_DETECTED_POINTS:
-                        //ROS_INFO("DataUARTHandler Sort Thread : Object TLV");
                         sorterState = READ_OBJ_STRUCT;
                         break;
 
                     case MMWDEMO_OUTPUT_MSG_RANGE_PROFILE:
-                        //ROS_INFO("DataUARTHandler Sort Thread : Range TLV");
                         sorterState = READ_LOG_MAG_RANGE;
                         break;
 
                     case MMWDEMO_OUTPUT_MSG_NOISE_PROFILE:
-                        //ROS_INFO("DataUARTHandler Sort Thread : Noise TLV");
                         sorterState = READ_NOISE;
                         break;
 
                     case MMWDEMO_OUTPUT_MSG_AZIMUTH_STATIC_HEAT_MAP:
-                        //ROS_INFO("DataUARTHandler Sort Thread : Azimuth Heat TLV");
                         sorterState = READ_AZIMUTH;
                         break;
 
                     case MMWDEMO_OUTPUT_MSG_RANGE_DOPPLER_HEAT_MAP:
-                        //ROS_INFO("DataUARTHandler Sort Thread : R/D Heat TLV");
                         sorterState = READ_DOPPLER;
                         break;
 
                     case MMWDEMO_OUTPUT_MSG_STATS:
-                        //ROS_INFO("DataUARTHandler Sort Thread : Stats TLV");
                         sorterState = READ_STATS;
                         break;
 
                     case MMWDEMO_OUTPUT_MSG_DETECTED_POINTS_SIDE_INFO:
-                        //ROS_INFO("DataUARTHandler Sort Thread : Side info TLV");
                         sorterState = READ_SIDE_INFO;
                         break;
 
                     case MMWDEMO_OUTPUT_MSG_MAX:
-                        //ROS_INFO("DataUARTHandler Sort Thread : Header TLV");
                         sorterState = READ_HEADER;
                         break;
 
@@ -626,33 +595,3 @@ void* DataUARTHandler::syncedBufferSwap_helper(void *context)
     return (static_cast<DataUARTHandler*>(context)->syncedBufferSwap());
 }
 
-// void DataUARTHandler::visualize(const ti_mmwave_rospkg::RadarScan &msg){
-//     visualization_msgs::Marker marker;
-
-//     marker.header.frame_id = frameID;
-//     marker.header.stamp = ros::Time::now();
-//     marker.id = msg.point_id;
-//     marker.type = visualization_msgs::Marker::SPHERE;
-//     marker.lifetime = ros::Duration(tfr);
-//     marker.action = marker.ADD;
-
-//     marker.pose.position.x = msg.x;
-//     marker.pose.position.y = msg.y;
-//     marker.pose.position.z = 0;
-
-//     marker.pose.orientation.x = 0;
-//     marker.pose.orientation.y = 0;
-//     marker.pose.orientation.z = 0;
-//     marker.pose.orientation.w = 0;
-
-//     marker.scale.x = .03;
-//     marker.scale.y = .03;
-//     marker.scale.z = .03;
-
-//     marker.color.a = 1;
-//     marker.color.r = (int) 255 * msg.intensity;
-//     marker.color.g = (int) 255 * msg.intensity;
-//     marker.color.b = 1;
-
-//     marker_pub.publish(marker);
-// }
