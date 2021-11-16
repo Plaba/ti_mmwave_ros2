@@ -115,7 +115,7 @@ catkin_package(
   INCLUDE_DIRS include
   LIBRARIES mmwave
   CATKIN_DEPENDS nodelet roscpp serial std_msgs
-  DEPENDS system_lib
+#  DEPENDS system_lib
 )
 
 ###########
