@@ -135,8 +135,6 @@ private:
     ros::NodeHandle* nodeHandle;
     
     ros::Publisher DataUARTHandler_pub;
-    ros::Publisher radar_scan_pub;
-    ros::Publisher marker_pub;
 };
 
 #endif
