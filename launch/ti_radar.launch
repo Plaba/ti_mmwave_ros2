@@ -1,7 +1,7 @@
 <launch>
   <arg name="mav_name" default="zero" />
   <arg name="log_output" default="screen"/>
-  <arg name="new_radar" value="false" />
+  <arg name="new_radar" value="true" />
 
   <!-- Input arguments -->
   <arg name="device" value="1843" doc="TI mmWave sensor device type [1443, 1642, 1843]"/>
