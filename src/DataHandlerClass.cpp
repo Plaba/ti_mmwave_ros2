@@ -238,10 +238,11 @@ void *DataUARTHandler::sortIncomingData(void)
 {
   MmwDemo_Output_TLV_Types tlvType = MMWDEMO_OUTPUT_MSG_NULL;
   uint32_t tlvLen = 0;
+  uint32_t tlvCount = 0;
   uint32_t headerSize;
   unsigned int currentDatap = 0;
   SorterState sorterState = READ_HEADER;
-  int i = 0, tlvCount = 0;
+  int i = 0;
   int j = 0;
   float maxElevationAngleRatioSquared;
   float maxAzimuthAngleRatio;
@@ -344,6 +345,8 @@ void *DataUARTHandler::sortIncomingData(void)
 
         // Get time
         RScan->header.stamp = ros::Time::now().toNSec() / 1e3;
+        // or from: https://github.com/radar-lab/ti_mmwave_rospkg/pull/27/files
+        pcl_conversions::toPCL(ros::Time::now(), RScan->header.stamp);
 
         RScan->header.frame_id = frameID;
         RScan->height = 1;

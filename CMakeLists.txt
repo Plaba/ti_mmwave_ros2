@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ## By adding -Wall and -Werror, the compiler does not ignore warnings anymore,
 ## enforcing cleaner code.
-# add_definitions(-Wall -Werror)
+add_definitions(-Wall -Werror)
 
 # Find catkin macros and libraries
 find_package(catkin REQUIRED 
@@ -26,51 +26,22 @@ find_package(catkin REQUIRED
 ## Find system libraries
 find_package(Boost REQUIRED)
 find_package(Threads REQUIRED)
-find_package(PCL REQUIRED)
 
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
-
-
-## Uncomment this if the package has a setup.py. This macro ensures
-## modules and global scripts declared therein get installed
-## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-# catkin_python_setup()
 
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
 
-## To declare and build messages, services or actions from within this
-## package, follow these steps:
-## * Let MSG_DEP_SET be the set of packages whose message types you use in
-##   your messages/services/actions (e.g. std_msgs, actionlib_msgs, ...).
-## * In the file package.xml:
-##   * add a build_depend tag for "message_generation"
-##   * add a build_depend and a run_depend tag for each package in MSG_DEP_SET
-##   * If MSG_DEP_SET isn't empty the following dependency has been pulled in
-##     but can be declared for certainty nonetheless:
-##     * add a run_depend tag for "message_runtime"
-## * In this file (CMakeLists.txt):
-##   * add "message_generation" and every package in MSG_DEP_SET to
-##     find_package(catkin REQUIRED COMPONENTS ...)
-##   * add "message_runtime" and every package in MSG_DEP_SET to
-##     catkin_package(CATKIN_DEPENDS ...)
-##   * uncomment the add_*_files sections below as needed
-##     and list every .msg/.srv/.action file to be processed
-##   * uncomment the generate_messages entry below
-##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
-
 ## Generate messages in the 'msg' folder
-add_message_files(
+add_message_files(DIRECTORY msg
   FILES
-  RadarScan.msg
+    RadarScan.msg
 )
 
 ## Generate services in the 'srv' folder
-add_service_files(
+add_service_files(DIRECTORY srv
   FILES
-  mmWaveCLI.srv
+    mmWaveCLI.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -83,8 +54,8 @@ add_service_files(
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  std_msgs
-  sensor_msgs
+    std_msgs
+    sensor_msgs
 )
 
 ################################################
@@ -117,10 +88,17 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES mmwave
-  CATKIN_DEPENDS nodelet roscpp serial std_msgs
-#  DEPENDS system_lib
+  INCLUDE_DIRS 
+    include
+  LIBRARIES
+    mmwave
+  CATKIN_DEPENDS
+    nodelet
+    roscpp
+    serial
+    std_msgs
+  DEPENDS
+    # system_lib
 )
 
 ###########
@@ -129,22 +107,16 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-# include_directories(include)
-include_directories( include
+include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
   ${ti_mmwave_rospkg_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
   ${pthread_INCLUDE_DIRS}
-  ${rt_INCLUDE_DIRS}
+  ${rt_INCLUDE_DIRS} # (?)
 )
 
-link_directories( ${Boost_LIBRARIES_DIRS} )
-
-link_directories( ${PCL_LIBRARY_DIRS} )
-
-add_definitions(${PCL_DEFINITIONS})
-
-## Declare a C++ library
+## mmwave library
+# 1. declare cpp library
 add_library(mmwave
   src/mmWaveDataHdl.cpp
   src/mmWaveCommSrv.cpp
@@ -152,31 +124,49 @@ add_library(mmwave
   src/mmWaveQuickConfig.cpp
   src/ParameterParser.cpp
 )
+# 2. add dependencies
+add_dependencies(mmwave
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS}
+)
+# 3. specify libraries to link executable targets against
+target_link_libraries(mmwave
+  ${serial_LIBRARIES}
+)
 
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-add_dependencies(mmwave ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+## executable 1: ti_mmwave_rospkg (==${PROJECT_NAME}) executable
+# 1. Declare cpp executables
+add_executable(${PROJECT_NAME} 
+  src/mmWaveLoader.cpp
+  include/ti_mmwave_rospkg/point_types.h
+)
+# 2. add dependencies
+add_dependencies(${PROJECT_NAME}
+  ${catkin_EXPORTED_TARGETS}
+  ${serial_EXPORTED_TARGETS}
+  mmwave
+)
+# 3. specify libraries to link executable targets against
+target_link_libraries(${PROJECT_NAME}
+  ${catkin_LIBRARIES}
+  ${serial_LIBRARIES}
+  mmwave
+)
 
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/ti_mmwave_rospkg_node.cpp)
+## same for executable 2: mmWaveQuickConfig
+add_executable(mmWaveQuickConfig
+  src/mmWaveQuickConfig.cpp
+)
+target_link_libraries(
+  mmWaveQuickConfig 
+  ${catkin_LIBRARIES}
+  mmwave
+)
+add_dependencies(mmWaveQuickConfig
+  ${catkin_EXPORTED_TARGETS}
+  mmwave
+)
 
-## Rename C++ executable without prefix
-## The above recommended prefix causes long target names, the following renames the
-## target back to the shorter version for ease of user use
-## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
-
-## Add cmake target dependencies of the executable
-## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}_node
-#   ${catkin_LIBRARIES}
-# )
 
 #############
 ## Install ##
@@ -213,15 +203,6 @@ add_dependencies(mmwave ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TA
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
 
-add_executable(${PROJECT_NAME} src/mmWaveLoader.cpp include/ti_mmwave_rospkg/point_types.h)
-target_link_libraries(mmwave ${serial_LIBRARIES})
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} mmwave ${serial_LIBRARIES})
-add_dependencies(${PROJECT_NAME} ${catkin_EXPORTED_TARGETS} mmwave ${serial_EXPORTED_TARGETS})
-
-add_executable(mmWaveQuickConfig src/mmWaveQuickConfig.cpp)
-target_link_libraries(mmWaveQuickConfig ${catkin_LIBRARIES} mmwave)
-add_dependencies(mmWaveQuickConfig ${catkin_EXPORTED_TARGETS} mmwave)
-
 
 #############
 ## Testing ##
@@ -233,8 +214,6 @@ add_dependencies(mmWaveQuickConfig ${catkin_EXPORTED_TARGETS} mmwave)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
 
-## Add folders to be run by python nosetests
-# catkin_add_nosetests(test)
 
 
 ##########################
