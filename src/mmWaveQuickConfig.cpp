@@ -1,10 +1,13 @@
+// Copyright 2021 TI/Zhang/ETHZ-ASL (?)
+
 #include <stdio.h>
 
 #include <cstdlib>
 #include <fstream>
-#include <regex>
+#include <regex>  // NOLINT => linter is not happy with regex (should use re2)
 
-#include "ros/ros.h"
+#include <ros/ros.h>
+
 #include "ti_mmwave_rospkg/ParameterParser.h"
 #include "ti_mmwave_rospkg/mmWaveCLI.h"
 

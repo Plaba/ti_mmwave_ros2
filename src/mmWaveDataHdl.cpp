@@ -1,5 +1,9 @@
+// Copyright 2021 TI/Zhang/ETHZ-ASL (?)
+
+
 #include "ti_mmwave_rospkg/DataHandlerClass.h"
 #include "ti_mmwave_rospkg/mmWaveDataHdl.h"
+#include <string>
 
 namespace ti_mmwave_rospkg
 {
@@ -41,8 +45,8 @@ void mmWaveDataHdl::onInit()
   ROS_INFO("mmWaveDataHdl: max_allowed_azimuth_angle_deg = %d", myMaxAllowedAzimuthAngleDeg);
 
   DataUARTHandler DataHandler(&private_nh);
-  DataHandler.setFrameID((char*)myFrameID.c_str());
-  DataHandler.setUARTPort((char*)mySerialPort.c_str());
+  DataHandler.setFrameID(reinterpret_cast<char*>(myFrameID.c_str()));
+  DataHandler.setUARTPort(reinterpret_cast<char*>(mySerialPort.c_str());
   DataHandler.setBaudRate(myBaudRate);
   DataHandler.setMaxAllowedElevationAngleDeg(myMaxAllowedElevationAngleDeg);
   DataHandler.setMaxAllowedAzimuthAngleDeg(myMaxAllowedAzimuthAngleDeg);

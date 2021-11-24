@@ -242,4 +242,4 @@ add_dependencies(mmWaveQuickConfig ${catkin_EXPORTED_TARGETS} mmwave)
 ##########################
 
 ## usage: catkin build --this --no-deps --make-args roslint
-# roslint_cpp()
+roslint_cpp()

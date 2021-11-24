@@ -46,17 +46,16 @@
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.h>
 #include <ros/ros.h>
-#include <std_msgs/String.h>
-
-#include "serial/serial.h"
+#include <serial/serial.h>
 
 /*Include standard C/C++ headers*/
 #include <cstdio>
 #include <iostream>
 #include <sstream>
+#include <string>
 
 /*mmWave Driver Headers*/
-#include <ti_mmwave_rospkg/mmWaveCLI.h>
+#include "ti_mmwave_rospkg/mmWaveCLI.h"
 
 namespace ti_mmwave_rospkg
 {

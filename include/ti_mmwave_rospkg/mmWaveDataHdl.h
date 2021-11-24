@@ -48,7 +48,6 @@
 
 #include <ros/ros.h>
 #include <serial/serial.h>
-#include <std_msgs/String.>
 
 /*Include standard C/C++ headers*/
 #include <cstdio>
