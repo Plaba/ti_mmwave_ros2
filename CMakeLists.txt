@@ -222,6 +222,7 @@ add_executable(mmWaveQuickConfig src/mmWaveQuickConfig.cpp)
 target_link_libraries(mmWaveQuickConfig ${catkin_LIBRARIES} mmwave)
 add_dependencies(mmWaveQuickConfig ${catkin_EXPORTED_TARGETS} mmwave)
 
+
 #############
 ## Testing ##
 #############
@@ -234,3 +235,11 @@ add_dependencies(mmWaveQuickConfig ${catkin_EXPORTED_TARGETS} mmwave)
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
+
+
+##########################
+## Static code analysis ##
+##########################
+
+## usage: catkin build --this --no-deps --make-args roslint
+# roslint_cpp()

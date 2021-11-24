@@ -1,4 +1,4 @@
-#include "ti_mmwave_rospkg/mmWaveCommSrv.hpp"
+#include "ti_mmwave_rospkg/mmWaveCommSrv.h"
 
 namespace ti_mmwave_rospkg
 {
@@ -65,7 +65,8 @@ bool mmWaveCommSrv::commSrv_cb(mmWaveCLI::Request &req , mmWaveCLI::Response &re
     /*Send out command received from the client*/
     ROS_INFO("mmWaveCommSrv: Sending command to sensor: '%s'", req.comm.c_str());
     req.comm.append("\n");
-    int bytesSent = mySerialObject.write(req.comm.c_str());
+    size_t bytesSent = mySerialObject.write(req.comm.c_str()); 
+    ROS_INFO_STREAM("mmWaveCommSrv: Sent nb of bytes to sensor: " << bytesSent);
 
     /*Read output from mmwDemo*/
     mySerialObject.readline(res.resp, 1024, ":/>");

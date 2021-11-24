@@ -1,4 +1,4 @@
-#include "ti_mmwave_rospkg/mmWaveDataHdl.hpp"
+#include "ti_mmwave_rospkg/mmWaveDataHdl.h"
 #include "ti_mmwave_rospkg/DataHandlerClass.h"
 
 namespace ti_mmwave_rospkg
@@ -17,9 +17,9 @@ void mmWaveDataHdl::onInit()
     int myBaudRate;
     int myMaxAllowedElevationAngleDeg;
     int myMaxAllowedAzimuthAngleDeg;
-   
+
     private_nh.getParam("data_port", mySerialPort);
-   
+
     private_nh.getParam("data_rate", myBaudRate);
     
     private_nh.getParam("frame_id", myFrameID);
@@ -36,7 +36,7 @@ void mmWaveDataHdl::onInit()
     ROS_INFO("mmWaveDataHdl: data_rate = %d", myBaudRate);
     ROS_INFO("mmWaveDataHdl: max_allowed_elevation_angle_deg = %d", myMaxAllowedElevationAngleDeg);
     ROS_INFO("mmWaveDataHdl: max_allowed_azimuth_angle_deg = %d", myMaxAllowedAzimuthAngleDeg);
-   
+
     DataUARTHandler DataHandler(&private_nh);
     DataHandler.setFrameID( (char*) myFrameID.c_str() );
     DataHandler.setUARTPort( (char*) mySerialPort.c_str() );
@@ -44,7 +44,7 @@ void mmWaveDataHdl::onInit()
     DataHandler.setMaxAllowedElevationAngleDeg( myMaxAllowedElevationAngleDeg );
     DataHandler.setMaxAllowedAzimuthAngleDeg( myMaxAllowedAzimuthAngleDeg );
     DataHandler.start();
-   
+
     NODELET_DEBUG("mmWaveDataHdl: Finished onInit function");
 }
 
