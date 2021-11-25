@@ -243,9 +243,6 @@ void *DataUARTHandler::sortIncomingData(void)
   unsigned int currentDatap = 0;
   SorterState sorterState = READ_HEADER;
   int i = 0;
-  int j = 0;
-  float maxElevationAngleRatioSquared;
-  float maxAzimuthAngleRatio;
 
   boost::shared_ptr<pcl::PointCloud<radar_pcl::PointXYZIVR>> RScan(new pcl::PointCloud<radar_pcl::PointXYZIVR>);
   ti_mmwave_rospkg::RadarScan radarscan;
@@ -354,26 +351,6 @@ void *DataUARTHandler::sortIncomingData(void)
         RScan->is_dense = 1;
         RScan->points.resize(RScan->width * RScan->height);
 
-        // Calculate ratios for max desired elevation and azimuth angles
-        if ((maxAllowedElevationAngleDeg >= 0) && (maxAllowedElevationAngleDeg < 90))
-        {
-          maxElevationAngleRatioSquared = tan(maxAllowedElevationAngleDeg * M_PI / 180.0);
-          maxElevationAngleRatioSquared = maxElevationAngleRatioSquared * maxElevationAngleRatioSquared;
-        }
-        else
-        {
-          maxElevationAngleRatioSquared = -1;
-        }
-
-        if ((maxAllowedAzimuthAngleDeg >= 0) && (maxAllowedAzimuthAngleDeg < 90))
-        {
-          maxAzimuthAngleRatio = tan(maxAllowedAzimuthAngleDeg * M_PI / 180.0);
-        }
-        else
-        {
-          maxAzimuthAngleRatio = -1;
-        }
-
         // Populate pointcloud
         while (i < mmwData.numObjOut)
         {
@@ -471,36 +448,11 @@ void *DataUARTHandler::sortIncomingData(void)
           // Publish detected object pointcloud
           if (mmwData.numObjOut > 0)
           {
-            j = 0;
-            for (i = 0; i < mmwData.numObjOut; i++)
-            {
-              // Keep point if elevation and azimuth angles are less than specified max values
-              // (NOTE: The following calculations are done using ROS standard coordinate system axis definitions where
-              // X is forward and Y is left)
-              if (((maxElevationAngleRatioSquared == -1) ||
-                   (((RScan->points[i].z * RScan->points[i].z) /
-                     (RScan->points[i].x * RScan->points[i].x + RScan->points[i].y * RScan->points[i].y)) <
-                    maxElevationAngleRatioSquared)) &&
-                  ((maxAzimuthAngleRatio == -1) ||
-                   (fabs(RScan->points[i].y / RScan->points[i].x) < maxAzimuthAngleRatio)) &&
-                  (RScan->points[i].x != 0))
-              {
-                memcpy(&RScan->points[j], &RScan->points[i], sizeof(RScan->points[i]));
-                j++;
-              }
-            }
-            mmwData.numObjOut = j;  // update number of objects as some points may have been removed
-
-            // Resize point cloud since some points may have been removed
-            RScan->width = mmwData.numObjOut;
-            RScan->points.resize(RScan->width * RScan->height);
-
             DataUARTHandler_pub.publish(RScan);
           }
 
           sorterState = SWAP_BUFFERS;
         }
-
         else  // More TLV sections to parse
         {
           // get tlvType (32 bits) & remove from queue
