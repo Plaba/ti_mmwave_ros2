@@ -1,7 +1,10 @@
 // Copyright 2021 TI/Zhang/ETHZ-ASL (?)
 
-#include "ti_mmwave_rospkg/DataHandlerClass.h"
+#include <pthread.h>
+
 #include <vector>
+
+#include "ti_mmwave_rospkg/DataHandlerClass.h"
 
 DataUARTHandler::DataUARTHandler(ros::NodeHandle *nh) : currentBufp(&pingPongBuffers[0]), nextBufp(&pingPongBuffers[1])
 {
@@ -239,7 +242,7 @@ void *DataUARTHandler::sortIncomingData(void)
   MmwDemo_Output_TLV_Types tlvType = MMWDEMO_OUTPUT_MSG_NULL;
   uint32_t tlvLen = 0;
   uint32_t tlvCount = 0;
-  uint32_t headerSize;
+  uint32_t headerSize = 8 * 4;  // same for 1843 and 6843
   unsigned int currentDatap = 0;
   SorterState sorterState = READ_HEADER;
   int i = 0;
@@ -282,15 +285,7 @@ void *DataUARTHandler::sortIncomingData(void)
         memcpy(&mmwData.header.platform, &currentBufp->at(currentDatap), sizeof(mmwData.header.platform));
         currentDatap += (sizeof(mmwData.header.platform));
 
-        if ((mmwData.header.platform & 0xFFFF) == 0x1443)
-        {
-          headerSize = 7 * 4;  // xWR1443 SDK demo header does not have subFrameNumber field
-        }
-        else
-        {
-          headerSize = 8 * 4;  // header includes subFrameNumber field
-        }
-
+        // fixed header size 8*4 (same for 1843 and 6843 => set above)
         if (currentBufp->size() < headerSize)
         {
           sorterState = SWAP_BUFFERS;
@@ -313,12 +308,9 @@ void *DataUARTHandler::sortIncomingData(void)
         memcpy(&mmwData.header.numTLVs, &currentBufp->at(currentDatap), sizeof(mmwData.header.numTLVs));
         currentDatap += (sizeof(mmwData.header.numTLVs));
 
-        // get subFrameNumber (4 bytes) (not used for XWR1443)
-        if ((mmwData.header.platform & 0xFFFF) != 0x1443)
-        {
-          memcpy(&mmwData.header.subFrameNumber, &currentBufp->at(currentDatap), sizeof(mmwData.header.subFrameNumber));
-          currentDatap += (sizeof(mmwData.header.subFrameNumber));
-        }
+        // get subFrameNumber (4 bytes)
+        memcpy(&mmwData.header.subFrameNumber, &currentBufp->at(currentDatap), sizeof(mmwData.header.subFrameNumber));
+        currentDatap += (sizeof(mmwData.header.subFrameNumber));
 
         // if packet lengths do not match, throw it away
         if (mmwData.header.totalPacketLen == currentBufp->size())
@@ -371,17 +363,30 @@ void *DataUARTHandler::sortIncomingData(void)
                  sizeof(mmwData.objOut_cartes.velocity));
           currentDatap += (sizeof(mmwData.objOut_cartes.velocity));
 
-          // Map mmWave sensor coordinates to ROS coordinate system
-          RScan->points[i].x = mmwData.objOut_cartes.z;  // zy ROS standard coordinate system X-axis is forward which is
-                                                         // the mmWave sensor Y-axis
-          RScan->points[i].y = mmwData.objOut_cartes.x;  // x-x ROS standard coordinate system Y-axis is left which is
-                                                         // the mmWave sensor -(X-axis)
-          RScan->points[i].z = mmwData.objOut_cartes.y;  // y zROS standard coordinate system Z-axis is up which is the
-                                                         // same as mmWave sensor Z-axis
+          // Map mmWave sensor coordinates from TI to std ROS coordinate system (FLU)
+          // TI seems to have different frames for the sensors :/ => make platform dependent
+          if ((mmwData.header.platform & 0xFFFF) == 0x1843)
+          {
+            // 1843 has LH (!) coordinate frame => assign proper axes
+            RScan->points[i].x = mmwData.objOut_cartes.y;
+            RScan->points[i].y = mmwData.objOut_cartes.z;
+            RScan->points[i].z = -mmwData.objOut_cartes.x;
+          }
+          else if ((mmwData.header.platform & 0xFFFF) == 0x6843)
+          {
+            // 6843 has RH coordinate frame => rotate around z by +90 degrees
+            RScan->points[i].x = mmwData.objOut_cartes.y;
+            RScan->points[i].y = -mmwData.objOut_cartes.x;
+            RScan->points[i].z = mmwData.objOut_cartes.z;
+          }
+          else
+          {
+            ROS_FATAL("Device must either be '1843(AOP)' or '6843(AOP)'");
+          }
+
           RScan->points[i].velocity = mmwData.objOut_cartes.velocity;
           RScan->points[i].range =
-              sqrt(RScan->points[i].x * RScan->points[i].x + RScan->points[i].y * RScan->points[i].y +
-                   RScan->points[i].z * RScan->points[i].z);
+              sqrt(pow(RScan->points[i].x, 2) + pow(RScan->points[i].y, 2) + pow(RScan->points[i].z, 2));
 
           // Increase counter
           i++;
