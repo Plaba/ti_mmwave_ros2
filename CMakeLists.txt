@@ -4,6 +4,8 @@ project(ti_mmwave_rospkg)
 # Set target C++ standard and required compiler features
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 
 ## By adding -Wall and -Werror, the compiler does not ignore warnings anymore,
 ## enforcing cleaner code.
@@ -111,8 +113,8 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${ti_mmwave_rospkg_INCLUDE_DIRS}
-  ${pthread_INCLUDE_DIRS}
-  ${rt_INCLUDE_DIRS} # (?)
+  # ${pthread_INCLUDE_DIRS}
+  # ${rt_INCLUDE_DIRS} # (?)
 )
 
 ## mmwave library
@@ -132,6 +134,7 @@ add_dependencies(mmwave
 # 3. specify libraries to link executable targets against
 target_link_libraries(mmwave
   ${serial_LIBRARIES}
+  Threads::Threads
 )
 
 ## executable 1: ti_mmwave_rospkg (==${PROJECT_NAME}) executable
@@ -151,6 +154,7 @@ target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
   ${serial_LIBRARIES}
   mmwave
+  Threads::Threads
 )
 
 ## same for executable 2: mmWaveQuickConfig

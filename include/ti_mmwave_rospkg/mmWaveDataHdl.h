@@ -45,7 +45,6 @@
 /*Include ROS specific headers*/
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.h>
-
 #include <ros/ros.h>
 #include <serial/serial.h>
 

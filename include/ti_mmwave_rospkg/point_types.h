@@ -58,8 +58,7 @@ struct PointXYZIVR
 
   // ensure proper alignment
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-}
-EIGEN_ALIGN16;
+} EIGEN_ALIGN16;  // NOLINT
 }  // namespace radar_pcl
 
 POINT_CLOUD_REGISTER_POINT_STRUCT(radar_pcl::PointXYZIVR,

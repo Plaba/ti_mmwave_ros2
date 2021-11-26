@@ -41,13 +41,12 @@
 #define TI_MMWAVE_ROSPKG_MMWAVE_H
 
 #include <ros/ros.h>
+#include <serial/serial.h>
 
 #include <boost/thread.hpp>
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
-
-#include <serial/serial.h>
 
 enum MmwDemo_Output_TLV_Types
 {
@@ -151,8 +150,7 @@ typedef struct DPIF_PointCloudCartesian_t
    * is moving away from the sensor and negative velocity means target
    * is moving towards the sensor. */
   float velocity;
-}
-DPIF_PointCloudCartesian;
+} DPIF_PointCloudCartesian;  // NOLINT
 
 /**
  * @brief
@@ -166,8 +164,7 @@ typedef struct DPIF_PointCloudSideInfo_t
 
   /*! @brief y - CFAR noise level of the side of the detected cell in dB expressed in 0.1 steps of dB */
   int16_t noise;
-}
-DPIF_PointCloudSideInfo;
+} DPIF_PointCloudSideInfo;  // NOLINT
 
 /**
  * @brief
@@ -194,8 +191,7 @@ typedef struct DPIF_PointCloudSpherical_t
    *          is moving away from the sensor and negative velocity means target
    *          is moving towards the sensor. */
   float velocity;
-}
-DPIF_PointCloudSpherical;
+} DPIF_PointCloudSpherical;  // NOLINT
 
 typedef volatile struct DPIF_CFARDetList_t
 {
@@ -210,8 +206,7 @@ typedef volatile struct DPIF_CFARDetList_t
 
   /*!< Noise level in steps of 0.1 dB */
   int16_t noise;
-}
-DPIF_CFARDetList;
+} DPIF_CFARDetList;  // NOLINT
 
 struct mmwDataPacket
 {
