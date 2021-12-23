@@ -1,5 +1,7 @@
 # TI mmWave ROS Package (Customized)
 
+[![Build Test](https://github.com/ethz-asl/ti_mmwave_rospkg/actions/workflows/build_test.yml/badge.svg)](https://github.com/ethz-asl/ti_mmwave_rospkg/actions/workflows/build_test.yml)
+
 #### Auhor and Maintainer: Leo Zhang
 #### Organization: University of Arizona
 #### Email: dr.leo.zhang@outlook.com
