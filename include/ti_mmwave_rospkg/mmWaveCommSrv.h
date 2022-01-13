@@ -1,7 +1,9 @@
 /*
- * ParameterParser.h
+ * mmWaveCommSrv.h
  *
- * ParameterParser description...
+ * This file defines a ROS nodelet which will open up a serial port provided by the user
+ * at a certain baud rate (also provided by user) that will interface with the 1443EVM mmwDemo
+ * User UART to be used for board configuration.
  *
  *
  * Copyright (C) 2017 Texas Instruments Incorporated - http://www.ti.com/
@@ -37,36 +39,43 @@
  *
  */
 
-#ifndef TI_MMWAVE_ROSPKG_PARAMETERPARSER_H
-#define TI_MMWAVE_ROSPKG_PARAMETERPARSER_H
+#ifndef TI_MMWAVE_ROSPKG_MMWAVECOMMSRV_H
+#define TI_MMWAVE_ROSPKG_MMWAVECOMMSRV_H
 
+/*Include ROS specific headers*/
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.h>
 #include <ros/ros.h>
-#include <std_msgs/String.h>
+#include <serial/serial.h>
 
+/*Include standard C/C++ headers*/
 #include <cstdio>
-#include <cstdlib>
-#include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
-#include <vector>
 
+/*mmWave Driver Headers*/
 #include "ti_mmwave_rospkg/mmWaveCLI.h"
 
 namespace ti_mmwave_rospkg
 {
-class ParameterParser : public nodelet::Nodelet
+class mmWaveCommSrv : public nodelet::Nodelet
 {
 public:
-  ParameterParser();
-  void ParamsParser(ti_mmwave_rospkg::mmWaveCLI &srv, ros::NodeHandle &n);
-  void CalParams(ros::NodeHandle &nh);
+  mmWaveCommSrv();
 
 private:
   virtual void onInit();
-  ti_mmwave_rospkg::mmWaveCLI srv;
-};
+
+  bool commSrv_cb(ti_mmwave_rospkg::mmWaveCLI::Request &req, ti_mmwave_rospkg::mmWaveCLI::Response &res);
+
+  ros::ServiceServer commSrv;
+
+  std::string mySerialPort;
+
+  int myBaudRate;
+};  // Class mmWaveCommSrv
+
 }  // namespace ti_mmwave_rospkg
-#endif  // TI_MMWAVE_ROSPKG_PARAMETERPARSER_H
+
+#endif  // TI_MMWAVE_ROSPKG_MMWAVECOMMSRV_H
