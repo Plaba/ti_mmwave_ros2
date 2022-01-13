@@ -1,5 +1,7 @@
 # ROS Driver for TI's mmWave Radars
 
+[![Build Test](https://github.com/ethz-asl/ti_mmwave_rospkg/actions/workflows/build_test.yml/badge.svg)](https://github.com/ethz-asl/ti_mmwave_rospkg/actions/workflows/build_test.yml)
+
 This package provides a ROS package for TI's mmWave radars.
 
 It is forked from Leo Zhang's [work](https://github.com/radar-lab/ti_mmwave_rospkg), which itself is based on TI's [ROS driver](https://dev.ti.com/tirex/explore/node?node=AJVkbvjyhr4p7F6L5Elt4w__VLyFKFf__LATEST). This fork aims to update and simplify the code and make it more accessible for robotic applications with short to medium-range sensing requirements. We believe that this small form-factor antenna on package (AOP) chip design features some unique capabilities thanks to its little weight and low power consumption.
