@@ -39,10 +39,11 @@ void mmWaveDataHdl::onInit()
     myMaxAllowedAzimuthAngleDeg = 90;  // Use max angle if none specified
   }
 
-  ROS_INFO("mmWaveDataHdl: data_port = %s", mySerialPort.c_str());
-  ROS_INFO("mmWaveDataHdl: data_rate = %d", myBaudRate);
-  ROS_INFO("mmWaveDataHdl: max_allowed_elevation_angle_deg = %d", myMaxAllowedElevationAngleDeg);
-  ROS_INFO("mmWaveDataHdl: max_allowed_azimuth_angle_deg = %d", myMaxAllowedAzimuthAngleDeg);
+  ROS_INFO_STREAM("mmWaveDataHdl: data_port = " << mySerialPort.c_str());
+  ROS_INFO_STREAM("mmWaveDataHdl: data_rate = " << myBaudRate);
+  ROS_INFO_STREAM("mmWaveDataHdl: max_allowed_elevation_angle_deg = " <<  myMaxAllowedElevationAngleDeg);
+  ROS_INFO_STREAM("mmWaveDataHdl: max_allowed_azimuth_angle_deg = " <<  myMaxAllowedAzimuthAngleDeg);
+  ROS_INFO_STREAM("mmWaveDataHdl: myFrameID = " <<  myFrameID);
 
   DataUARTHandler DataHandler(&private_nh);
   DataHandler.setFrameID((char*)myFrameID.c_str());  // NOLINT => linter would prefer casting

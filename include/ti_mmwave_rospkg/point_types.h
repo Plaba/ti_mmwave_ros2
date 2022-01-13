@@ -48,6 +48,7 @@ namespace radar_pcl
 struct PointXYZIVR
 {
   PCL_ADD_POINT4D;
+  // todo: add noise
   float intensity;
 
   // Velocity in cartesian
