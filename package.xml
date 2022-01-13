@@ -1,12 +1,12 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>ti_mmwave_rospkg</name>
-  <version>3.4.0</version>
+  <version>3.5.0</version>
   <description>The ti_mmwave_rospkg package. (TI > Leo Zhang > ASL)</description>
-  <maintainer email="dr.leo.zhang@outlook.com">Leo Zhang</maintainer>
+  <maintainer email="nobody@nowhere.com">ASL Team</maintainer>
   <license>BSD</license>
-  <url type="website">https://github.com/radar-lab/ti_mmwave_rospkg</url> -->
-  <author email="dr.leo.zhang@outlook.com">Leo Zhang</author>
+  <url type="website">https://github.com/ethz-asl/ti_mmwave_rospkg</url>
+  <author email="nobody@nowhere.com">ASL Team</author>
 
   <!-- Dependencies can be catkin packages or system dependencies -->
   <buildtool_depend>catkin</buildtool_depend>
@@ -23,5 +23,5 @@
   <export>
     <nodelet plugin="${prefix}/mmWave_nodelets.xml" />
   </export>
-  
+
 </package>
