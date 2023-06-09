@@ -1,4 +1,4 @@
-Header header
+std_msgs/Header header
 uint16 point_id
 float32 x
 float32 y

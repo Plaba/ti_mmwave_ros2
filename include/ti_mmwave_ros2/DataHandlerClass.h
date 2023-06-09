@@ -37,19 +37,19 @@
  *
  */
 
-#ifndef TI_MMWAVE_ROSPKG_DATAHANDLERCLASS_H
-#define TI_MMWAVE_ROSPKG_DATAHANDLERCLASS_H
+#ifndef ti_mmwave_ros2_DATAHANDLERCLASS_H
+#define ti_mmwave_ros2_DATAHANDLERCLASS_H
 
+#include <rclcpp/rclcpp.hpp>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl_ros/point_cloud.h>
 #include <pthread.h>
-#include <ros/ros.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <sensor_msgs/PointField.h>
-#include <sensor_msgs/point_cloud2_iterator.h>
-#include <visualization_msgs/Marker.h>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <sensor_msgs/msg/point_field.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 
 #include <algorithm>
 #include <boost/shared_ptr.hpp>
@@ -59,33 +59,20 @@
 #include <iostream>
 #include <vector>
 
-#include "ti_mmwave_rospkg/RadarScan.h"
-#include "ti_mmwave_rospkg/mmWave.h"
-#include "ti_mmwave_rospkg/point_types.h"
+#include "ti_mmwave_ros2/msg/radar_scan.hpp"
+#include "ti_mmwave_ros2/mmWave.h"
+#include "ti_mmwave_ros2/point_types.h"
 #define COUNT_SYNC_MAX 2
 
-class DataUARTHandler
+namespace ti_mmwave_ros2
+{
+
+class DataUARTHandler : public rclcpp::Node
 {
 public:
   /*Constructor*/
   // void DataUARTHandler(ros::NodeHandle* nh) : currentBufp(&pingPongBuffers[0]) , nextBufp(&pingPongBuffers[1]) {}
-  explicit DataUARTHandler(ros::NodeHandle* nh);
-
-  void setFrameID(char* myFrameID);
-
-  /*User callable function to set the UARTPort*/
-  void setUARTPort(char* mySerialPort);
-
-  /*User callable function to set the BaudRate*/
-  void setBaudRate(int myBaudRate);
-
-  /*User callable function to set maxAllowedElevationAngleDeg*/
-  void setMaxAllowedElevationAngleDeg(int myMaxAllowedElevationAngleDeg);
-
-  /*User callable function to set maxAllowedElevationAngleDeg*/
-  void setMaxAllowedAzimuthAngleDeg(int myMaxAllowedAzimuthAngleDeg);
-
-  void setNodeHandle(ros::NodeHandle* nh);
+  explicit DataUARTHandler(const rclcpp::NodeOptions& options);
 
   /*User callable function to start the handler's internal threads*/
   void start(void);
@@ -101,6 +88,13 @@ public:
   mmwDataPacket mmwData;
 
 private:
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_cb_handle_;
+  bool setupParameters(void);
+  rcl_interfaces::msg::SetParametersResult paramsCallback(
+    const std::vector<rclcpp::Parameter> &parameters);
+
+  rclcpp::TimerBase::SharedPtr timer_;
+
   int nr;
   int nd;
   int ntx;
@@ -114,9 +108,9 @@ private:
   float max_vel;
   float vvel;
 
-  char* frameID;
+  std::string frameID;
   /*Contains the name of the serial port*/
-  char* dataSerialPort;
+  std::string dataSerialPort;
 
   /*Contains the baud Rate*/
   int dataBaudRate;
@@ -171,11 +165,13 @@ private:
   /*Sort incoming UART Data Thread*/
   void* sortIncomingData(void);
 
-  void visualize(const ti_mmwave_rospkg::RadarScan& msg);
+  void visualize(const ti_mmwave_ros2::msg::RadarScan& msg);
 
-  ros::NodeHandle* nodeHandle;
-
-  ros::Publisher DataUARTHandler_pub;
+  // ros::Publisher DataUARTHandler_pub;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr DataUARTHandler_pub;
 };
 
-#endif  // TI_MMWAVE_ROSPKG_DATAHANDLERCLASS_H
+}  // namespace ti_mmwave_ros2
+
+
+#endif  // ti_mmwave_ros2_DATAHANDLERCLASS_H

@@ -1,23 +1,29 @@
 // Copyright 2021 TI/Zhang/ETHZ-ASL (?)
 
-#include <nodelet/loader.h>
-#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
+
+#include "ti_mmwave_ros2/DataHandlerClass.h"
+#include "ti_mmwave_ros2/mmWaveCommSrv.h"
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "mmWave_Manager");
+  rclcpp::init(argc, argv);
 
-  nodelet::Loader manager(true);
+  rclcpp::executors::SingleThreadedExecutor exec;
+  rclcpp::NodeOptions options;
+  options.use_global_arguments(true);
 
-  nodelet::M_string remap(ros::names::getRemappings());
+  auto mmWaveCommSrv = std::make_shared<ti_mmwave_ros2::mmWaveCommSrv>(options);
+  exec.add_node(mmWaveCommSrv);
 
-  nodelet::V_string nargv;
+  auto mmWaveDataHdl = std::make_shared<ti_mmwave_ros2::DataUARTHandler>(options);
 
-  manager.load("mmWaveCommSrv", "ti_mmwave_rospkg/mmWaveCommSrv", remap, nargv);
+  options.allow_undeclared_parameters(true);
+  
+  exec.add_node(mmWaveDataHdl);
+  exec.spin();
 
-  manager.load("mmWaveDataHdl", "ti_mmwave_rospkg/mmWaveDataHdl", remap, nargv);
-
-  ros::spin();
+  rclcpp::shutdown();
 
   return 0;
 }

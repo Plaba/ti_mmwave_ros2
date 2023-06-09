@@ -1,7 +1,5 @@
 # ROS Driver for TI's mmWave Radars
 
-[![Build Test](https://github.com/ethz-asl/ti_mmwave_rospkg/actions/workflows/build_test.yml/badge.svg)](https://github.com/ethz-asl/ti_mmwave_rospkg/actions/workflows/build_test.yml)
-
 This package provides a ROS package for TI's mmWave radars.
 
 It is forked from Leo Zhang's [work](https://github.com/radar-lab/ti_mmwave_rospkg), which itself is based on TI's [ROS driver](https://dev.ti.com/tirex/explore/node?node=AJVkbvjyhr4p7F6L5Elt4w__VLyFKFf__LATEST). This fork aims to update and simplify the code and make it more accessible for robotic applications with short to medium-range sensing requirements. We believe that this small form-factor antenna on package (AOP) chip design features some unique capabilities thanks to its little weight and low power consumption.
@@ -27,12 +25,10 @@ The devices typically come with the out-of-box demo preinstalled, so most likely
 Preliminary steps:
 
 1. Connect the micro-USB (the one closer to the antenna) of the AOP sensor to the host machine running ROS.
-2. Enable the `command` and `data` ports on Linux:
-  
-  ```shell
-  sudo chmod 666 /dev/ttyUSB0
-  sudo chmod 666 /dev/ttyUSB1
-  ```
+2. On Linux, make sure you have the right permissions to access the serial port:
+```
+sudo usermod -aG dialout $USER
+```
   
 3. Test your sensor with the [Demo Visualizer](https://dev.ti.com/gallery/view/mmwave/mmWave_Demo_Visualizer/ver/3.5.0/) to check the connectivity and basic functionality. You can also create your own configuration file for your use-case (fps, range, velocity, etc.) with the visualizer.
 
@@ -41,7 +37,7 @@ Clone, build and launch:
 4. Clone this repo and ROS serial onto your `<workspace dir>/src`:
 
   ```shell
-  git clone https://github.com/ethz-asl/ti_mmwave_rospkg.git
+  git clone https://github.com/ethz-asl/ti_mmwave_ros2.git
   git clone https://github.com/wjwwood/serial.git
   ```
   
@@ -55,7 +51,7 @@ Clone, build and launch:
 6. Fire up the launch file:
 
   ```shell
-  roslaunch ti_mmwave_rospkg ti_radar.launch
+  roslaunch ti_mmwave_ros2 ti_radar.launch
   ```
 
   Note: If you set `visualize` to `True`, then rviz should start and you should see something like the following:
@@ -93,11 +89,10 @@ The `radar_scan_pcl` is a customized point cloud topic, consisting of:
   ```
 
   This happens when the serial port is called without superuser permission. Do the following steps:
-
   ```
-  sudo chmod 666 /dev/ttyACM0
-  sudo chmod 666 /dev/ttyACM1
+  sudo usermod -aG dialout $USER
   ```
+  restart your shell and try again.
 
 2. Sensor hiccup
 
@@ -136,13 +131,13 @@ Old:
 2. To avoid serial port conflict, you need to launch devices separately. So for the first device (it will open rviz):
 
   ```
-  roslaunch ti_mmwave_rospkg multi_1642_0.launch 
+  roslaunch ti_mmwave_ros2 multi_1642_0.launch 
   ```
 
 3. Change radars' location in first three arguments `<node pkg="tf" type="static_transform_publisher" name="radar_baselink_0" args="0 -1 0 0 0 0 ti_mmwave_pcl ti_mmwave_0 100"/>` (stands for x,y,z for positions) in launch file `multi_1642_1.launch`. And launch second device:
 
   ```
-  roslaunch ti_mmwave_rospkg multi_1642_1.launch 
+  roslaunch ti_mmwave_ros2 multi_1642_1.launch 
   ```
 
 Note: As serial connection and the original code, you need to launch devices separately using different launch files.
@@ -161,7 +156,7 @@ Note: As serial connection and the original code, you need to launch devices sep
 4. Launch radar-camera system using:
 
   ```
-  roslaunch ti_mmwave_rospkg camera_overlay.launch
+  roslaunch ti_mmwave_ros2 camera_overlay.launch
   ```
 
 ## Changelog

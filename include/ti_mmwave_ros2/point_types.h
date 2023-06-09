@@ -5,7 +5,7 @@
  *
  *  Copyright? (C) 2017 Texas Instruments Incorporated - http://www.ti.com/
  *
- *  @author Claude, https://github.com/Claud1234/ti_mmwave_rospkg/
+ *  @author Claude, https://github.com/Claud1234/ti_mmwave_ros2/
  *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions
@@ -37,8 +37,8 @@
  *
  */
 
-#ifndef TI_MMWAVE_ROSPKG_POINT_TYPES_H
-#define TI_MMWAVE_ROSPKG_POINT_TYPES_H
+#ifndef ti_mmwave_ros2_POINT_TYPES_H
+#define ti_mmwave_ros2_POINT_TYPES_H
 
 #include <pcl/point_types.h>
 
@@ -71,4 +71,4 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(radar_pcl::PointXYZIVR,
                                   (float, range, range)
                                   )
 
-#endif  // TI_MMWAVE_ROSPKG_POINT_TYPES_H
+#endif  // ti_mmwave_ros2_POINT_TYPES_H

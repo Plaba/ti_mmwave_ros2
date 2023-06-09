@@ -1,26 +1,29 @@
 // Copyright 2021 TI/Zhang/ETHZ-ASL (?)
 
 
-#include "ti_mmwave_rospkg/mmWaveCommSrv.h"
+#include "ti_mmwave_ros2/mmWaveCommSrv.h"
 
-namespace ti_mmwave_rospkg
+namespace ti_mmwave_ros2
 {
-PLUGINLIB_EXPORT_CLASS(ti_mmwave_rospkg::mmWaveCommSrv, nodelet::Nodelet);
-
 mmWaveCommSrv::mmWaveCommSrv()
+: rclcpp::Node("mmWaveCommSrv")
 {
+  onInit();
+}
+
+mmWaveCommSrv::mmWaveCommSrv(const rclcpp::NodeOptions& options)
+: rclcpp::Node("mmWaveCommSrv", options)
+{
+  onInit();
 }
 
 void mmWaveCommSrv::onInit()
 {
-  ros::NodeHandle private_nh = getPrivateNodeHandle();
-  ros::NodeHandle private_nh2("~");  // follow namespace for multiple sensors
+  mySerialPort = declare_parameter("command_port", mySerialPort);
+  myBaudRate = declare_parameter("command_rate", myBaudRate);
 
-  private_nh2.getParam("command_port", mySerialPort);
-  private_nh2.getParam("command_rate", myBaudRate);
-
-  ROS_INFO_STREAM("mmWaveCommSrv: command_port = " << mySerialPort.c_str());
-  ROS_INFO_STREAM("mmWaveCommSrv: command_rate = " << myBaudRate);
+  RCLCPP_INFO_STREAM(get_logger(), "mmWaveCommSrv: command_port = " << mySerialPort.c_str());
+  RCLCPP_INFO_STREAM(get_logger(), "mmWaveCommSrv: command_rate = " << myBaudRate);
 
   /* Write one newline to get comms to known state, (rather hacky) */
   serial::Serial mySerialObject("", myBaudRate, serial::Timeout::simpleTimeout(1000));
@@ -29,14 +32,19 @@ void mmWaveCommSrv::onInit()
   mySerialObject.write("\n");
   mySerialObject.close();
 
-  commSrv = private_nh.advertiseService("/mmWaveCLI", &mmWaveCommSrv::commSrv_cb, this);
+  commSrv = create_service<mmWaveCLI>("/mmWaveCLI", 
+    std::bind(&mmWaveCommSrv::commSrv_cb, this, std::placeholders::_1,
+      std::placeholders::_2, std::placeholders::_3));
 
-  NODELET_DEBUG("mmWaveCommsrv: Finished onInit function");
+  RCLCPP_DEBUG(get_logger(),"mmWaveCommsrv: Finished onInit function");
 }
 
-bool mmWaveCommSrv::commSrv_cb(mmWaveCLI::Request &req, mmWaveCLI::Response &res)
+bool mmWaveCommSrv::commSrv_cb(
+  const std::shared_ptr<rmw_request_id_t> request_header,
+  std::shared_ptr<mmWaveCLI::Request> req, std::shared_ptr<mmWaveCLI::Response> res
+)
 {
-  NODELET_DEBUG_STREAM("mmWaveCommSrv: Port is " << mySerialPort.c_str() << " and baud rate is " << myBaudRate);
+  RCLCPP_DEBUG_STREAM(get_logger(),"mmWaveCommSrv: Port is " << mySerialPort.c_str() << " and baud rate is " << myBaudRate);
 
   /*Open Serial port and error check*/
   serial::Serial mySerialObject("", myBaudRate, serial::Timeout::simpleTimeout(1000));
@@ -47,19 +55,19 @@ bool mmWaveCommSrv::commSrv_cb(mmWaveCLI::Request &req, mmWaveCLI::Response &res
   }
   catch (std::exception &e1)
   {
-    ROS_INFO_STREAM("mmWaveCommSrv: Failed to open User serial port with error: " << e1.what());
-    ROS_INFO_STREAM("mmWaveCommSrv: Waiting 20 seconds before trying again...");
+    RCLCPP_INFO_STREAM(get_logger(), "mmWaveCommSrv: Failed to open User serial port with error: " << e1.what());
+    RCLCPP_INFO_STREAM(get_logger(), "mmWaveCommSrv: Waiting 20 seconds before trying again...");
     try
     {
       // Wait 20 seconds and try to open serial port again
-      ros::Duration(20).sleep();
+      rclcpp::sleep_for(std::chrono::seconds(20));
       mySerialObject.open();
       mySerialObject.write("\n");  // Flush the port
     }
     catch (std::exception &e2)
     {
-      ROS_ERROR_STREAM("mmWaveCommSrv: Failed second time to open User serial port, error: " << e2.what());
-      NODELET_ERROR_STREAM("mmWaveCommSrv: Port could not be opened. Port is " << mySerialPort.c_str()
+      RCLCPP_ERROR_STREAM(get_logger(), "mmWaveCommSrv: Failed second time to open User serial port, error: " << e2.what());
+      RCLCPP_ERROR_STREAM(get_logger(),"mmWaveCommSrv: Port could not be opened. Port is " << mySerialPort.c_str()
                                                                                << " and baud rate is " << myBaudRate);
       return false;
     }
@@ -68,23 +76,30 @@ bool mmWaveCommSrv::commSrv_cb(mmWaveCLI::Request &req, mmWaveCLI::Response &res
   /*Read any previous pending response(s)*/
   while (mySerialObject.available() > 0)
   {
-    mySerialObject.readline(res.resp, 1024, ":/>");
-    ROS_INFO_STREAM("mmWaveCommSrv: Received (previous) response from sensor: " << res.resp.c_str());
-    res.resp = "";
+    mySerialObject.readline(res->resp, 1024, ":/>");
+    RCLCPP_INFO_STREAM(get_logger(), "mmWaveCommSrv: Received (previous) response from sensor: " << res->resp.c_str());
+    res->resp = "";
   }
 
   /*Send out command received from the client*/
-  ROS_INFO_STREAM("mmWaveCommSrv: Sending command to sensor: " << req.comm.c_str());
-  req.comm.append("\n");
-  size_t bytesSent = mySerialObject.write(req.comm.c_str());
-  ROS_INFO_STREAM("mmWaveCommSrv: Sent nb of bytes to sensor: " << bytesSent);
+  req->comm.append("\n");
+  RCLCPP_INFO_STREAM(get_logger(), "mmWaveCommSrv: Sending command to sensor: " << req->comm);
+  size_t bytesSent = mySerialObject.write(req->comm);
+  RCLCPP_INFO_STREAM(get_logger(), "mmWaveCommSrv: Sent nb of bytes to sensor: " << bytesSent);
 
   /*Read output from mmwDemo*/
-  mySerialObject.readline(res.resp, 1024, ":/>");
-  ROS_INFO_STREAM("mmWaveCommSrv: Received response from sensor: " << res.resp.c_str());
+  mySerialObject.readline(res->resp, 1024, ":/>");
+  RCLCPP_INFO_STREAM(get_logger(), "mmWaveCommSrv: Received response from sensor: " << res->resp.c_str());
 
   mySerialObject.close();
 
   return true;
 }
-}  // namespace ti_mmwave_rospkg
+}  // namespace ti_mmwave_ros2
+
+#include "rclcpp_components/register_node_macro.hpp"
+
+// Register the component with class_loader.
+// This acts as a sort of entry point, allowing the component to be discoverable when its library
+// is being loaded into a running process.
+RCLCPP_COMPONENTS_REGISTER_NODE(ti_mmwave_ros2::mmWaveCommSrv)

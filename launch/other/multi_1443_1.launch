@@ -7,7 +7,7 @@
   <arg name="max_allowed_azimuth_angle_deg" default="90" doc="Maximum allowed azimuth angle in degrees for detected object data [0 > value >= 90]}"/>
 
   <!-- mmWave_Manager node -->
-  <node pkg="ti_mmwave_rospkg" type="ti_mmwave_rospkg" name="ti_mmwave" ns="radar_1" output="screen">
+  <node pkg="ti_mmwave_ros2" type="ti_mmwave_ros2" name="ti_mmwave" ns="radar_1" output="screen">
     <param name="command_port" value="/dev/ttyACM2"  />
     <param name="command_rate" value="115200"   />
     <param name="data_port" value="/dev/ttyACM3"  />
@@ -19,7 +19,7 @@
   </node>
 
   <!-- mmWaveQuickConfig node (terminates after configuring mmWave sensor) -->
-  <node pkg="ti_mmwave_rospkg" type="mmWaveQuickConfig" name="ti_mmwave_config" ns="radar_1" args="$(find ti_mmwave_rospkg)/cfg/1443es1_mid_range_3d.cfg" output="screen" />
+  <node pkg="ti_mmwave_ros2" type="mmWaveQuickConfig" name="ti_mmwave_config" ns="radar_1" args="$(find ti_mmwave_ros2)/cfg/1443es1_mid_range_3d.cfg" output="screen" />
 
   <node pkg="tf" type="static_transform_publisher" name="radar_baselink_1" args="0 1 0 0 0 0 ti_mmwave_pcl ti_mmwave_1 100"/>
   

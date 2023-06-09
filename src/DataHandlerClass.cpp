@@ -4,76 +4,52 @@
 
 #include <vector>
 
-#include "ti_mmwave_rospkg/DataHandlerClass.h"
+#include "ti_mmwave_ros2/DataHandlerClass.h"
 
-DataUARTHandler::DataUARTHandler(ros::NodeHandle *nh) : currentBufp(&pingPongBuffers[0]), nextBufp(&pingPongBuffers[1])
+namespace ti_mmwave_ros2
 {
-  DataUARTHandler_pub = nh->advertise<sensor_msgs::PointCloud2>("radar_scan_pcl", 100);
-  maxAllowedElevationAngleDeg = 90;  // Use max angle if none specified
-  maxAllowedAzimuthAngleDeg = 90;    // Use max angle if none specified
 
-  // Wait for parameters
-  while (!nh->hasParam("/ti_mmwave/doppler_vel_resolution"))
-  {
-  }
+DataUARTHandler::DataUARTHandler(const rclcpp::NodeOptions& options)
+: rclcpp::Node("ti_data_handler", options)
+, currentBufp(&pingPongBuffers[0])
+, nextBufp(&pingPongBuffers[1])
+{
+  DataUARTHandler_pub = create_publisher<sensor_msgs::msg::PointCloud2>("radar_scan_pcl", 100);
+  dataSerialPort = declare_parameter("data_port", dataSerialPort);
+  dataBaudRate = declare_parameter("data_rate", dataBaudRate);
+  frameID = declare_parameter("frame_id", frameID);
 
-  nh->getParam("/ti_mmwave/numAdcSamples", nr);
-  nh->getParam("/ti_mmwave/numLoops", nd);
-  nh->getParam("/ti_mmwave/num_TX", ntx);
-  nh->getParam("/ti_mmwave/f_s", fs);
-  nh->getParam("/ti_mmwave/f_c", fc);
-  nh->getParam("/ti_mmwave/BW", BW);
-  nh->getParam("/ti_mmwave/PRI", PRI);
-  nh->getParam("/ti_mmwave/t_fr", tfr);
-  nh->getParam("/ti_mmwave/max_range", max_range);
-  nh->getParam("/ti_mmwave/range_resolution", vrange);
-  nh->getParam("/ti_mmwave/max_doppler_vel", max_vel);
-  nh->getParam("/ti_mmwave/doppler_vel_resolution", vvel);
+  declare_parameter<int>("max_allowed_elevation_angle_deg", 90);
+  declare_parameter<int>("max_allowed_azimuth_angle_deg", 90);
 
-  ROS_INFO_STREAM("==============================");
-  ROS_INFO_STREAM("List of parameters");
-  ROS_INFO_STREAM("==============================");
-  ROS_INFO_STREAM("Number of range samples: " << nr);
-  ROS_INFO_STREAM("Number of chirps: " << nd);
-  ROS_INFO_STREAM("Number of TX antenna: " << ntx);
-  ROS_INFO_STREAM("f_s: " << fs / 1e6 << " MHz");
-  ROS_INFO_STREAM("Bandwidth: " << BW / 1e6 << " MHz");
-  ROS_INFO_STREAM("PRI: " << PRI * 1e6 << " us");
-  ROS_INFO_STREAM("Frame time: " << tfr * 1e3 << " ms");
-  ROS_INFO_STREAM("Max range: " << max_range << " m");
-  ROS_INFO_STREAM("Range resolution: " << vrange << "m");
-  ROS_INFO_STREAM("Max Doppler: " << max_vel / 2 << "m/s");
-  ROS_INFO_STREAM("Doppler resolution: " << vvel << " m/s");
-  ROS_INFO_STREAM("==============================");
+  get_parameter("max_allowed_elevation_angle_deg", maxAllowedElevationAngleDeg);
+  get_parameter("max_allowed_azimuth_angle_deg", maxAllowedAzimuthAngleDeg);
+
+  declare_parameter<int>("/ti_mmwave/numAdcSamples",0);
+  declare_parameter<int>("/ti_mmwave/numLoops",0);
+  declare_parameter<int>("/ti_mmwave/num_TX",0);
+  declare_parameter<double>("/ti_mmwave/f_s",0.0);
+  declare_parameter<double>("/ti_mmwave/f_c",0.0);
+  declare_parameter<double>("/ti_mmwave/BW",0.0);
+  declare_parameter<double>("/ti_mmwave/PRI",0.0);
+  declare_parameter<double>("/ti_mmwave/t_fr",0.0);
+  declare_parameter<double>("/ti_mmwave/max_range",0.0);
+  declare_parameter<double>("/ti_mmwave/range_resolution",0.0);
+  declare_parameter<double>("/ti_mmwave/max_doppler_vel",0.0);
+  declare_parameter<double>("/ti_mmwave/doppler_vel_resolution",0.0);
+  timer_ = create_wall_timer(std::chrono::milliseconds(1000), std::bind(&DataUARTHandler::start, this));
+  param_cb_handle_ = add_on_set_parameters_callback(std::bind(&DataUARTHandler::paramsCallback, this, std::placeholders::_1));
 }
 
-void DataUARTHandler::setFrameID(char *myFrameID)
+rcl_interfaces::msg::SetParametersResult DataUARTHandler::paramsCallback(
+    const std::vector<rclcpp::Parameter> &parameters)
 {
-  frameID = myFrameID;
-}
+    rcl_interfaces::msg::SetParametersResult result;
 
-/*Implementation of setUARTPort*/
-void DataUARTHandler::setUARTPort(char *mySerialPort)
-{
-  dataSerialPort = mySerialPort;
-}
-
-/*Implementation of setBaudRate*/
-void DataUARTHandler::setBaudRate(int myBaudRate)
-{
-  dataBaudRate = myBaudRate;
-}
-
-/*Implementation of setMaxAllowedElevationAngleDeg*/
-void DataUARTHandler::setMaxAllowedElevationAngleDeg(int myMaxAllowedElevationAngleDeg)
-{
-  maxAllowedElevationAngleDeg = myMaxAllowedElevationAngleDeg;
-}
-
-/*Implementation of setMaxAllowedAzimuthAngleDeg*/
-void DataUARTHandler::setMaxAllowedAzimuthAngleDeg(int myMaxAllowedAzimuthAngleDeg)
-{
-  maxAllowedAzimuthAngleDeg = myMaxAllowedAzimuthAngleDeg;
+    RCLCPP_INFO(get_logger(), "recieved parameter: %s", parameters[0].get_name().c_str());
+    result.successful = true;
+    result.reason = "success";
+    return result;
 }
 
 /*Implementation of readIncomingData*/
@@ -91,30 +67,30 @@ void *DataUARTHandler::readIncomingData(void)
   }
   catch (std::exception &e1)
   {
-    ROS_INFO("DataUARTHandler Read Thread: Failed to open Data serial port with error: %s", e1.what());
-    ROS_INFO("DataUARTHandler Read Thread: Waiting 20 seconds before trying again...");
+    RCLCPP_INFO(get_logger(), "DataUARTHandler Read Thread: Failed to open Data serial port with error: %s", e1.what());
+    RCLCPP_INFO(get_logger(), "DataUARTHandler Read Thread: Waiting 20 seconds before trying again...");
     try
     {
       // Wait 20 seconds and try to open serial port again
-      ros::Duration(20).sleep();
+      rclcpp::sleep_for(std::chrono::seconds(20));
       mySerialObject.open();
     }
     catch (std::exception &e2)
     {
-      ROS_ERROR("DataUARTHandler Read Thread: Failed second time to open Data serial port, error: %s", e1.what());
-      ROS_ERROR("DataUARTHandler Read Thread: Port could not be opened. Port is \"%s\" and baud rate is %d",
-                dataSerialPort, dataBaudRate);
+      RCLCPP_ERROR(get_logger(), "DataUARTHandler Read Thread: Failed second time to open Data serial port, error: %s", e1.what());
+      RCLCPP_ERROR(get_logger(), "DataUARTHandler Read Thread: Port could not be opened. Port is \"%s\" and baud rate is %d",
+                dataSerialPort.c_str(), dataBaudRate);
       pthread_exit(NULL);
     }
   }
 
   if (mySerialObject.isOpen())
   {
-    ROS_INFO("DataUARTHandler Read Thread: Port is open");
+    RCLCPP_INFO(get_logger(), "DataUARTHandler Read Thread: Port is open");
   }
   else
   {
-    ROS_ERROR("DataUARTHandler Read Thread: Port could not be opened");
+    RCLCPP_ERROR(get_logger(), "DataUARTHandler Read Thread: Port could not be opened");
   }
 
   /*Quick magicWord check to synchronize program with data Stream*/
@@ -133,7 +109,7 @@ void *DataUARTHandler::readIncomingData(void)
   /*Lock nextBufp before entering main loop*/
   pthread_mutex_lock(&nextBufp_mutex);
 
-  while (ros::ok())
+  while (rclcpp::ok())
   {
     /*Start reading UART data and writing to buffer while also checking for magicWord*/
     last8Bytes[0] = last8Bytes[1];
@@ -207,7 +183,7 @@ int DataUARTHandler::isMagicWord(uint8_t last8Bytes[8])
 
 void *DataUARTHandler::syncedBufferSwap(void)
 {
-  while (ros::ok())
+  while (rclcpp::ok())
   {
     pthread_mutex_lock(&countSync_mutex);
 
@@ -248,7 +224,7 @@ void *DataUARTHandler::sortIncomingData(void)
   int i = 0;
 
   boost::shared_ptr<pcl::PointCloud<radar_pcl::PointXYZIVR>> RScan(new pcl::PointCloud<radar_pcl::PointXYZIVR>);
-  ti_mmwave_rospkg::RadarScan radarscan;
+  ti_mmwave_ros2::msg::RadarScan radarscan;
 
   // wait for first packet to arrive
   pthread_mutex_lock(&countSync_mutex);
@@ -257,7 +233,7 @@ void *DataUARTHandler::sortIncomingData(void)
 
   pthread_mutex_lock(&currentBufp_mutex);
 
-  while (ros::ok())
+  while (rclcpp::ok())
   {
     switch (sorterState)
     {
@@ -333,9 +309,9 @@ void *DataUARTHandler::sortIncomingData(void)
         RScan->header.seq = 0;
 
         // Get time
-        RScan->header.stamp = ros::Time::now().toNSec() / 1e3;
-        // or from: https://github.com/radar-lab/ti_mmwave_rospkg/pull/27/files
-        pcl_conversions::toPCL(ros::Time::now(), RScan->header.stamp);
+        RScan->header.stamp = now().nanoseconds() / 1e3;
+        // or from: https://github.com/radar-lab/ti_mmwave_ros2/pull/27/files
+        pcl_conversions::toPCL(now(), RScan->header.stamp);
 
         RScan->header.frame_id = frameID;
         RScan->height = 1;
@@ -381,7 +357,7 @@ void *DataUARTHandler::sortIncomingData(void)
           }
           else
           {
-            ROS_FATAL("Device must either be '1843(AOP)' or '6843(AOP)'");
+            RCLCPP_FATAL(get_logger(), "Device must either be '1843(AOP)' or '6843(AOP)'");
           }
 
           RScan->points[i].velocity = mmwData.objOut_cartes.velocity;
@@ -453,7 +429,9 @@ void *DataUARTHandler::sortIncomingData(void)
           // Publish detected object pointcloud
           if (mmwData.numObjOut > 0)
           {
-            DataUARTHandler_pub.publish(RScan);
+            auto ros_scan_msg = std::make_unique<sensor_msgs::msg::PointCloud2>();
+            pcl::toROSMsg(*RScan, *ros_scan_msg);
+            DataUARTHandler_pub->publish(*ros_scan_msg);
           }
 
           sorterState = SWAP_BUFFERS;
@@ -544,8 +522,70 @@ void *DataUARTHandler::sortIncomingData(void)
   pthread_exit(NULL);
 }
 
+bool DataUARTHandler::setupParameters(void)
+{
+  get_parameter("data_port", dataSerialPort);
+  get_parameter("data_rate", dataBaudRate);
+  get_parameter("frame_id", frameID);
+  get_parameter_or("max_allowed_elevation_angle_deg", maxAllowedElevationAngleDeg, 90);
+  get_parameter_or("max_allowed_azimuth_angle_deg", maxAllowedAzimuthAngleDeg, 90);
+
+  RCLCPP_INFO_STREAM(get_logger(), "Waiting for parameters...");
+  if(get_parameter("/ti_mmwave/doppler_vel_resolution").as_double() == 0.0)
+  {
+    return false;
+  }
+
+
+
+  get_parameter("/ti_mmwave/numAdcSamples", nr);
+  get_parameter("/ti_mmwave/numLoops", nd);
+  get_parameter("/ti_mmwave/num_TX", ntx);
+  get_parameter("/ti_mmwave/f_s", fs);
+  get_parameter("/ti_mmwave/f_c", fc);
+  get_parameter("/ti_mmwave/BW", BW);
+  get_parameter("/ti_mmwave/PRI", PRI);
+  get_parameter("/ti_mmwave/t_fr", tfr);
+  get_parameter("/ti_mmwave/max_range", max_range);
+  get_parameter("/ti_mmwave/range_resolution", vrange);
+  get_parameter("/ti_mmwave/max_doppler_vel", max_vel);
+  get_parameter("/ti_mmwave/doppler_vel_resolution", vvel);
+
+  RCLCPP_INFO_STREAM(get_logger(), "==============================");
+  RCLCPP_INFO_STREAM(get_logger(), "List of parameters");
+  RCLCPP_INFO_STREAM(get_logger(), "==============================");
+  RCLCPP_INFO_STREAM(get_logger(), "data_port: " << dataSerialPort);
+  RCLCPP_INFO_STREAM(get_logger(), "data_rate: " << dataBaudRate);
+  RCLCPP_INFO_STREAM(get_logger(), "max_allowed_elevation_angle_deg: " <<  maxAllowedElevationAngleDeg);
+  RCLCPP_INFO_STREAM(get_logger(), "max_allowed_azimuth_angle_deg: " <<  maxAllowedAzimuthAngleDeg);
+  RCLCPP_INFO_STREAM(get_logger(), "myFrameID: " <<  frameID);
+  RCLCPP_INFO_STREAM(get_logger(), "Number of range samples: " << nr);
+  RCLCPP_INFO_STREAM(get_logger(), "Number of chirps: " << nd);
+  RCLCPP_INFO_STREAM(get_logger(), "Number of TX antenna: " << ntx);
+  RCLCPP_INFO_STREAM(get_logger(), "f_s: " << fs / 1e6 << " MHz");
+  RCLCPP_INFO_STREAM(get_logger(), "Bandwidth: " << BW / 1e6 << " MHz");
+  RCLCPP_INFO_STREAM(get_logger(), "PRI: " << PRI * 1e6 << " us");
+  RCLCPP_INFO_STREAM(get_logger(), "Frame time: " << tfr * 1e3 << " ms");
+  RCLCPP_INFO_STREAM(get_logger(), "Max range: " << max_range << " m");
+  RCLCPP_INFO_STREAM(get_logger(), "Range resolution: " << vrange << "m");
+  RCLCPP_INFO_STREAM(get_logger(), "Max Doppler: " << max_vel / 2 << "m/s");
+  RCLCPP_INFO_STREAM(get_logger(), "Doppler resolution: " << vvel << " m/s");
+  RCLCPP_INFO_STREAM(get_logger(), "==============================");
+
+  timer_->cancel();
+  timer_ = nullptr;
+  return true;
+}
+
 void DataUARTHandler::start(void)
 {
+
+  if(setupParameters()){
+    RCLCPP_INFO_STREAM(get_logger(), "Parameters set up successfully");
+  } else {
+    return;
+  }
+
   pthread_t uartThread, sorterThread, swapThread;
 
   int iret1, iret2, iret3;
@@ -563,32 +603,30 @@ void DataUARTHandler::start(void)
   iret1 = pthread_create(&uartThread, NULL, this->readIncomingData_helper, this);
   if (iret1)
   {
-    ROS_INFO("Error - pthread_create() return code: %d\n", iret1);
-    ros::shutdown();
+    RCLCPP_INFO(get_logger(), "Error - pthread_create() return code: %d\n", iret1);
+    rclcpp::shutdown();
   }
 
   iret2 = pthread_create(&sorterThread, NULL, this->sortIncomingData_helper, this);
   if (iret2)
   {
-    ROS_INFO("Error - pthread_create() return code: %d\n", iret1);
-    ros::shutdown();
+    RCLCPP_INFO(get_logger(), "Error - pthread_create() return code: %d\n", iret1);
+    rclcpp::shutdown();
   }
 
   iret3 = pthread_create(&swapThread, NULL, this->syncedBufferSwap_helper, this);
   if (iret3)
   {
-    ROS_INFO("Error - pthread_create() return code: %d\n", iret1);
-    ros::shutdown();
+    RCLCPP_INFO(get_logger(), "Error - pthread_create() return code: %d\n", iret1);
+    rclcpp::shutdown();
   }
 
-  ros::spin();
-
   pthread_join(iret1, NULL);
-  ROS_INFO("DataUARTHandler Read Thread joined");
+  RCLCPP_INFO(get_logger(), "DataUARTHandler Read Thread joined");
   pthread_join(iret2, NULL);
-  ROS_INFO("DataUARTHandler Sort Thread joined");
+  RCLCPP_INFO(get_logger(), "DataUARTHandler Sort Thread joined");
   pthread_join(iret3, NULL);
-  ROS_INFO("DataUARTHandler Swap Thread joined");
+  RCLCPP_INFO(get_logger(), "DataUARTHandler Swap Thread joined");
 
   pthread_mutex_destroy(&countSync_mutex);
   pthread_mutex_destroy(&nextBufp_mutex);
@@ -612,3 +650,13 @@ void *DataUARTHandler::syncedBufferSwap_helper(void *context)
 {
   return (static_cast<DataUARTHandler *>(context)->syncedBufferSwap());
 }
+
+} // namespace ti_mmwave_ros2
+
+#include "rclcpp_components/register_node_macro.hpp"
+
+// Register the component with class_loader.
+// This acts as a sort of entry point, allowing the component to be discoverable when its library
+// is being loaded into a running process.
+RCLCPP_COMPONENTS_REGISTER_NODE(ti_mmwave_ros2::DataUARTHandler)
+

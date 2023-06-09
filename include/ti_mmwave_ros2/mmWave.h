@@ -37,8 +37,8 @@
  *
  */
 
-#ifndef TI_MMWAVE_ROSPKG_MMWAVE_H
-#define TI_MMWAVE_ROSPKG_MMWAVE_H
+#ifndef ti_mmwave_ros2_MMWAVE_H
+#define ti_mmwave_ros2_MMWAVE_H
 
 #include <ros/ros.h>
 #include <serial/serial.h>
@@ -169,7 +169,7 @@ typedef struct DPIF_PointCloudSideInfo_t
 /**
  * @brief
  *  Point cloud definition in spherical coordinate system
- *  Adapted from https://github.com/Claud1234/ti_mmwave_rospkg
+ *  Adapted from https://github.com/Claud1234/ti_mmwave_ros2
  */
 typedef struct DPIF_PointCloudSpherical_t
 {
@@ -224,4 +224,4 @@ struct mmwDataPacket
 
 const uint8_t magicWord[8] = { 2, 1, 4, 3, 6, 5, 8, 7 };
 
-#endif  // TI_MMWAVE_ROSPKG_MMWAVE_H
+#endif  // ti_mmwave_ros2_MMWAVE_H
