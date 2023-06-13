@@ -3,6 +3,7 @@
 #include <pthread.h>
 
 #include <vector>
+#include <rclcpp/time.hpp>
 
 #include "ti_mmwave_ros2/DataHandlerClass.h"
 
@@ -13,6 +14,7 @@ DataUARTHandler::DataUARTHandler(const rclcpp::NodeOptions& options)
 : rclcpp::Node("ti_data_handler", options)
 , currentBufp(&pingPongBuffers[0])
 , nextBufp(&pingPongBuffers[1])
+, context_(options.context())
 {
   DataUARTHandler_pub = create_publisher<sensor_msgs::msg::PointCloud2>("radar_scan_pcl", 100);
   dataSerialPort = declare_parameter("data_port", dataSerialPort);
@@ -46,7 +48,7 @@ rcl_interfaces::msg::SetParametersResult DataUARTHandler::paramsCallback(
 {
     rcl_interfaces::msg::SetParametersResult result;
 
-    RCLCPP_INFO(get_logger(), "recieved parameter: %s", parameters[0].get_name().c_str());
+    RCLCPP_DEBUG(get_logger(), "received parameter: %s", parameters[0].get_name().c_str());
     result.successful = true;
     result.reason = "success";
     return result;
@@ -93,6 +95,7 @@ void *DataUARTHandler::readIncomingData(void)
     RCLCPP_ERROR(get_logger(), "DataUARTHandler Read Thread: Port could not be opened");
   }
 
+  rclcpp::Clock clock;
   /*Quick magicWord check to synchronize program with data Stream*/
   while (!isMagicWord(last8Bytes))
   {
@@ -104,12 +107,13 @@ void *DataUARTHandler::readIncomingData(void)
     last8Bytes[5] = last8Bytes[6];
     last8Bytes[6] = last8Bytes[7];
     mySerialObject.read(&last8Bytes[7], 1);
+    RCLCPP_DEBUG_THROTTLE(get_logger(), clock, 500, "Waiting for magic word");
   }
 
   /*Lock nextBufp before entering main loop*/
   pthread_mutex_lock(&nextBufp_mutex);
 
-  while (rclcpp::ok())
+  while (!should_shutdown)
   {
     /*Start reading UART data and writing to buffer while also checking for magicWord*/
     last8Bytes[0] = last8Bytes[1];
@@ -158,6 +162,8 @@ void *DataUARTHandler::readIncomingData(void)
     }
   }
   mySerialObject.close();
+  RCLCPP_INFO(get_logger(), "Read Thread finished");
+
   pthread_exit(NULL);
 }
 
@@ -183,7 +189,7 @@ int DataUARTHandler::isMagicWord(uint8_t last8Bytes[8])
 
 void *DataUARTHandler::syncedBufferSwap(void)
 {
-  while (rclcpp::ok())
+  while (!should_shutdown)
   {
     pthread_mutex_lock(&countSync_mutex);
 
@@ -210,6 +216,9 @@ void *DataUARTHandler::syncedBufferSwap(void)
     }
     pthread_mutex_unlock(&countSync_mutex);
   }
+
+  RCLCPP_INFO(get_logger(), "Swap Thread finished");
+
   pthread_exit(NULL);
 }
 
@@ -233,7 +242,7 @@ void *DataUARTHandler::sortIncomingData(void)
 
   pthread_mutex_lock(&currentBufp_mutex);
 
-  while (rclcpp::ok())
+  while (!should_shutdown)
   {
     switch (sorterState)
     {
@@ -519,6 +528,8 @@ void *DataUARTHandler::sortIncomingData(void)
     }
   }
 
+  RCLCPP_INFO(get_logger(), "Sort Thread finished");
+
   pthread_exit(NULL);
 }
 
@@ -535,8 +546,6 @@ bool DataUARTHandler::setupParameters(void)
   {
     return false;
   }
-
-
 
   get_parameter("/ti_mmwave/numAdcSamples", nr);
   get_parameter("/ti_mmwave/numLoops", nd);
@@ -586,9 +595,7 @@ void DataUARTHandler::start(void)
     return;
   }
 
-  pthread_t uartThread, sorterThread, swapThread;
-
-  int iret1, iret2, iret3;
+  int retval;
 
   pthread_mutex_init(&countSync_mutex, NULL);
   pthread_mutex_init(&nextBufp_mutex, NULL);
@@ -600,33 +607,42 @@ void DataUARTHandler::start(void)
   countSync = 0;
 
   /* Create independent threads each of which will execute function */
-  iret1 = pthread_create(&uartThread, NULL, this->readIncomingData_helper, this);
-  if (iret1)
+  if ((retval = pthread_create(&read_thread_id, NULL, this->readIncomingData_helper, this)) !=0)
   {
-    RCLCPP_INFO(get_logger(), "Error - pthread_create() return code: %d\n", iret1);
-    rclcpp::shutdown();
+    RCLCPP_ERROR(get_logger(), "Error - pthread_create() return code: %d\n", retval);
+    rclcpp::shutdown(context_);
   }
 
-  iret2 = pthread_create(&sorterThread, NULL, this->sortIncomingData_helper, this);
-  if (iret2)
+  if ((retval = pthread_create(&sort_thread_id, NULL, this->sortIncomingData_helper, this)) != 0)
   {
-    RCLCPP_INFO(get_logger(), "Error - pthread_create() return code: %d\n", iret1);
-    rclcpp::shutdown();
+    RCLCPP_ERROR(get_logger(), "Error - pthread_create() return code: %d\n", retval);
+    rclcpp::shutdown(context_);
   }
 
-  iret3 = pthread_create(&swapThread, NULL, this->syncedBufferSwap_helper, this);
-  if (iret3)
+  if ((retval = pthread_create(&swap_thread_id, NULL, this->syncedBufferSwap_helper, this)) != 0)
   {
-    RCLCPP_INFO(get_logger(), "Error - pthread_create() return code: %d\n", iret1);
-    rclcpp::shutdown();
+    RCLCPP_ERROR(get_logger(), "Error - pthread_create() return code: %d\n", retval);
+    rclcpp::shutdown(context_);
   }
 
-  pthread_join(iret1, NULL);
-  RCLCPP_INFO(get_logger(), "DataUARTHandler Read Thread joined");
-  pthread_join(iret2, NULL);
-  RCLCPP_INFO(get_logger(), "DataUARTHandler Sort Thread joined");
-  pthread_join(iret3, NULL);
-  RCLCPP_INFO(get_logger(), "DataUARTHandler Swap Thread joined");
+  rclcpp::on_shutdown(std::bind(&DataUARTHandler::shutdownCallback, this), context_);
+}
+
+void DataUARTHandler::shutdownCallback()
+{
+  should_shutdown = true;
+  int retval;
+
+  auto logger = rclcpp::get_logger("mmwave_shutdown");
+
+  if((retval = pthread_join(read_thread_id, NULL))!=0){
+    RCLCPP_ERROR(logger, "Error when joining read thread: pthread_join returned %d", retval);
+  }
+  RCLCPP_INFO(logger, "DataUARTHandler Read Thread joined");
+  pthread_join(sort_thread_id, NULL);
+  RCLCPP_INFO(logger, "DataUARTHandler Sort Thread joined");
+  pthread_join(swap_thread_id, NULL);
+  RCLCPP_INFO(logger, "DataUARTHandler Swap Thread joined");
 
   pthread_mutex_destroy(&countSync_mutex);
   pthread_mutex_destroy(&nextBufp_mutex);
@@ -634,6 +650,10 @@ void DataUARTHandler::start(void)
   pthread_cond_destroy(&countSync_max_cv);
   pthread_cond_destroy(&read_go_cv);
   pthread_cond_destroy(&sort_go_cv);
+
+  RCLCPP_INFO(logger, "Shutting down node");
+
+  rclcpp::shutdown();
 }
 
 void *DataUARTHandler::readIncomingData_helper(void *context)

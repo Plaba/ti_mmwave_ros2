@@ -40,7 +40,6 @@
 #ifndef ti_mmwave_ros2_MMWAVE_H
 #define ti_mmwave_ros2_MMWAVE_H
 
-#include <ros/ros.h>
 #include <serial/serial.h>
 
 #include <boost/thread.hpp>

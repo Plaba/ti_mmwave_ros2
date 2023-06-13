@@ -153,6 +153,16 @@ private:
   /*Condition variable which blocks the Sort Thread until signaled*/
   pthread_cond_t sort_go_cv;
 
+  /* Indicator that the read thread is joined */
+
+  pthread_t read_thread_id;
+  pthread_t sort_thread_id;
+  pthread_t swap_thread_id;
+
+  volatile bool should_shutdown = false;
+
+  void shutdownCallback();
+
   /*Swap Buffer Pointers Thread*/
   void* syncedBufferSwap(void);
 
@@ -167,8 +177,9 @@ private:
 
   void visualize(const ti_mmwave_ros2::msg::RadarScan& msg);
 
-  // ros::Publisher DataUARTHandler_pub;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr DataUARTHandler_pub;
+
+  const rclcpp::Context::SharedPtr context_;
 };
 
 }  // namespace ti_mmwave_ros2

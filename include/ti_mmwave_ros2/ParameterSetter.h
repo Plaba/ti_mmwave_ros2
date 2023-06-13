@@ -43,7 +43,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <pluginlib/class_list_macros.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <std_msgs/String.h>
+#include <std_msgs/msg/string.hpp>
 
 #include <cstdio>
 #include <cstdlib>

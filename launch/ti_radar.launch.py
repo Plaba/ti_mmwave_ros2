@@ -57,9 +57,9 @@ def generate_launch_description():
                     output="screen",
                     # arguments=['--ros-args', '--log-level', 'debug'],
                     parameters=[
-                        {'command_port': '/dev/serial/by-id/usb-Texas_Instruments_XDS110__03.00.00.05__Embed_with_CMSIS-DAP_R2091049-if00'},
+                        {'command_port': '/dev/ttyACM0'},
                         {'command_rate': 115200},
-                        {'data_port': '/dev/serial/by-id/usb-Texas_Instruments_XDS110__03.00.00.05__Embed_with_CMSIS-DAP_R2091049-if03'},
+                        {'data_port': '/dev/ttyACM1'},
                         {'data_rate': 921600},
                         {'frame_id': radar_frame}
                     ]
@@ -88,7 +88,7 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='static_TF_map_radar',
-            arguments=['0', '0.5', '0', '0', '0', '0', 'map', radar_frame],
+            arguments=['0', '0', '0', '0', '0', '0', 'base_link', radar_frame],
             condition=IfCondition(launch_tf),
         ),
 
