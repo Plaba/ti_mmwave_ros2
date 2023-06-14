@@ -45,7 +45,7 @@ def generate_launch_description():
                         get_package_share_directory("ti_mmwave_ros2"),
                         'cfg',
                         radar_type,
-                        PythonExpression(['"',radar_type,'_shortRange_30fps.cfg"'])
+                        PythonExpression(['"',radar_type,'_shortRange_10fps.cfg"'])
                     ])],
                     output="screen", 
                 ),
