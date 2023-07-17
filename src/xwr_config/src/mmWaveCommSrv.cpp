@@ -33,7 +33,30 @@ void mmWaveCommSrv::onInit()
   /* Write one newline to get comms to known state, (rather hacky) */
   serial::Serial mySerialObject("", myBaudRate, serial::Timeout::simpleTimeout(1000));
   mySerialObject.setPort(mySerialPort.c_str());
-  mySerialObject.open();
+  /*Open UART Port and error checking*/
+  try
+  {
+    mySerialObject.open();
+  }
+  catch (std::exception &e1)
+  {
+    RCLCPP_INFO(get_logger(), "Failed to open Data serial port with error: %s", e1.what());
+    RCLCPP_INFO(get_logger(), "Waiting 20 seconds before trying again...");
+    try
+    {
+      // Wait 20 seconds and try to open serial port again
+      rclcpp::sleep_for(std::chrono::seconds(20));
+      mySerialObject.open();
+    }
+    catch (std::exception &e2)
+    {
+      RCLCPP_ERROR(get_logger(), "Failed second time to open Data serial port, error: %s", e1.what());
+      RCLCPP_ERROR(get_logger(), "Port could not be opened. Port is \"%s\" and baud rate is %d",
+                mySerialPort.c_str(), myBaudRate);
+      pthread_exit(NULL);
+    }
+  }
+
   mySerialObject.write("\n");
   mySerialObject.close();
 
