@@ -1,7 +1,6 @@
 import numpy as np
 from queue import Queue
 from ctypes import *
-from circular_buffer import *
 from numpy.ctypeslib import ndpointer
 
 
@@ -15,36 +14,75 @@ class RingBuffer:
         self.pop_array = c_int16(-1)
         self.total = []
 
+        if max_len % frame_size == 0:
+            self.n_frames = max_len / frame_size
+        else:
+            raise ValueError("Must be multiple of frame size")
+
+        self.c_file = CDLL('libcbuffer.so')
+
+        self.c_file.add_zeros.argtypes = [
+                                            c_int64,
+                                            ndpointer(c_int16, flags="C_CONTIGUOUS"),
+                                            c_int64,
+                                            POINTER(c_int64),
+                                            c_int64,
+                                            POINTER(c_int16)
+                                         ]
+
+        self.c_file.add_msg.argtypes =   [
+                                            ndpointer(c_int16, flags="C_CONTIGUOUS"),
+                                            c_int16,
+                                            ndpointer(c_int16, flags="C_CONTIGUOUS"),
+                                            c_int64,
+                                            POINTER(c_int64),
+                                            c_int64,
+                                            POINTER(c_int16)
+        ]
+
+        self.c_file.pad_and_add_msg.argtypes = [
+            c_int64,
+            c_int64,
+            ndpointer(c_int16, flags="C_CONTIGUOUS"),
+            c_int16,
+            ndpointer(c_int16, flags="C_CONTIGUOUS"),
+            c_int64,
+            POINTER(c_int64),
+            c_int64,
+            POINTER(c_int16)
+        ]
+
+
     def add_zeros(self,num_zeros):
-        add_zeros(num_zeros,
-                    self.data,
-                    self.max_len,
-                    byref(self.put_idx),
-                    self.frame_size,
-                    byref(self.pop_array))
+        self.c_file.add_zeros(num_zeros,
+                              self.data,
+                              self.max_len,
+                              byref(self.put_idx),
+                              self.frame_size,
+                              byref(self.pop_array))
         self.add_to_queue()
 
     def add_msg(self, msg):
 
-        add_msg(msg,
-                len(msg),
-                self.data,
-                self.max_len,
-                byref(self.put_idx),
-                self.frame_size,
-                byref(self.pop_array))
+        self.c_file.add_msg(msg,
+                            len(msg),
+                            self.data,
+                            self.max_len,
+                            byref(self.put_idx),
+                            self.frame_size,
+                            byref(self.pop_array))
         self.add_to_queue()
 
     def pad_and_add_msg(self, seq_c, seq_n, msg):
-        pad_and_add_msg(seq_c,
-                        seq_n,
-                        msg,
-                        len(msg),
-                        self.data,
-                        self.max_len,
-                        byref(self.put_idx),
-                        self.frame_size,
-                        byref(self.pop_array))
+        self.c_file.pad_and_add_msg(seq_c,
+                                    seq_n,
+                                    msg,
+                                    len(msg),
+                                    self.data,
+                                    self.max_len,
+                                    byref(self.put_idx),
+                                    self.frame_size,
+                                    byref(self.pop_array))
         self.add_to_queue()
 
     def add_to_queue(self):

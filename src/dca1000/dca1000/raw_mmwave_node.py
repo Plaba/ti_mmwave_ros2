@@ -22,12 +22,27 @@ class DCA1000Sensor(Node):
         'PLAYBACK_START_CMD_CODE'           : b"",
         'PLAYBACK_STOP_CMD_CODE'            : b"",
         'SYSTEM_CONNECT_CMD_CODE'           : b"\x5a\xa5\x09\x00\x00\x00\xaa\xee",
-        'SYSTEM_ERROR_CMD_CODE'             : b"\x5a\xa5\x0a\x00\x01\x00\xaa\xee",
+        'SYSTEM_ERROR_CMD_CODE'             : b"\x5a\xa5\x0a\x00\x00\x00\xaa\xee",
         'CONFIG_PACKET_DATA_CMD_CODE'       : b"\x5a\xa5\x0b\x00\x06\x00\xc0\x05\xc4\x09\x00\x00\xaa\xee",
         'CONFIG_DATA_MODE_AR_DEV_CMD_CODE'  : b"",
         'INIT_FPGA_PLAYBACK_CMD_CODE'       : b"",
         'READ_FPGA_VERSION_CMD_CODE'        : b"\x5a\xa5\x0e\x00\x00\x00\xaa\xee",
     }
+
+    DCA_ERROR_CODES = [
+        "NO_LVDS_DATA",
+        "NO_HEADER",
+        "EEPROM_FAILURE",
+        "SD_CARD_DETECTED",
+        "SD_CARD_REMOVED",
+        "SD_CARD_FULL",
+        "MODE_CONFIG_FAILURE",
+        "DDR_FULL",
+        "REC_COMPLETED",
+        "LVDS_BUFFER_FULL",
+        "PLAYBACK_COMPLETED",
+        "PLAYBACK_OUT_OF_SEQ",
+    ]
 
     DCA_CMD_PORT = 4096
     DCA_DATA_PORT = 4098
@@ -38,16 +53,17 @@ class DCA1000Sensor(Node):
         self.seqn = 0 # this is the last packet index
         self.bytec = 0 # this is a byte counter
 
-        self.dca_ip = self.declare_parameter('dca_ip', '192.168.33.30').value
+        self.host_ip = self.declare_parameter('host_ip', '192.168.33.30').value
+        self.dca_ip = self.declare_parameter('dca_ip', '192.168.33.180').value
+
         self.frame_id = self.declare_parameter('frame_id', 'ti_mmwave').value
 
         self.config_sub = self.create_subscription(MMWaveConfig, 'mmWaveCFG', self.after_configure, 1)
         self.data_pub = self.create_publisher(DataFrame, 'raw_data', 10)
 
-        self.dca_cmd_addr = (self.dca_ip, self.DCA_CMD_PORT)
-        self.dca_data_addr = (self.dca_ip, self.DCA_DATA_PORT)
-
-        self.capture_started = False
+        self.dca_cmd_addr = (self.host_ip, self.DCA_CMD_PORT)
+        self.dca_cmd_dest = (self.dca_ip, self.DCA_CMD_PORT)
+        self.dca_data_addr = (self.host_ip, self.DCA_DATA_PORT)
     
     def after_configure(self, msg:MMWaveConfig):
         self.radar_cfg = msg
@@ -98,10 +114,11 @@ class DCA1000Sensor(Node):
         # Set up DCA
         self.get_logger().info("Configuring DCA1000EVM")
 
-        self._send_dca_cmd('SYSTEM_CONNECT_CMD_CODE')
-        self._send_dca_cmd('READ_FPGA_VERSION_CMD_CODE')
-        self._send_dca_cmd('CONFIG_FPGA_GEN_CMD_CODE')
-        self._send_dca_cmd('CONFIG_PACKET_DATA_CMD_CODE')
+        self._send_dca_cmd_and_check_status('SYSTEM_CONNECT_CMD_CODE')
+        _cmd, status = self._send_dca_cmd('READ_FPGA_VERSION_CMD_CODE')
+        self.get_logger().info(f"FPGA version: {status}")
+        self._send_dca_cmd_and_check_status('CONFIG_FPGA_GEN_CMD_CODE')
+        self._send_dca_cmd_and_check_status('CONFIG_PACKET_DATA_CMD_CODE')
 
         self.get_logger().info("Done configuring DCA1000EVM")
     
@@ -109,22 +126,36 @@ class DCA1000Sensor(Node):
         if not self.dca_socket:
             return
         self.get_logger().debug(f"Sending {cmd_code} to DCA1000EVM")
-        self.dca_socket.sendto(self.DCA_CMDS[cmd_code], self.dca_cmd_addr)
+        self.dca_socket.sendto(self.DCA_CMDS[cmd_code], self.dca_cmd_dest)
         cmd, status = self.collect_response()
         self.get_logger().debug(f"Received (cmd_type, status): (0x{cmd:04x}, 0x{status:04x})")
-        if status:
-            self.get_logger().error(f"Error in sending {cmd_code} to DCA1000EVM")
+
+        return cmd, status
+
+    def _send_dca_cmd_and_check_status(self, cmd_code):
+        _cmd, status = self._send_dca_cmd(cmd_code)
+        if status == 1:
+            self.get_logger().error(f"Error in sending {cmd_code} to DCA1000EVM, collecting error message")
+            self._check_dca_status()
+            return False
+        return True
+    
+    def _check_dca_status(self):
+        cmd_, status = self._send_dca_cmd('SYSTEM_ERROR_CMD_CODE')
+        if status < len(self.DCA_ERROR_CODES):
+            self.get_logger().error(f"DCA1000EVM error: {self.DCA_ERROR_CODES[status]}")
         return status
 
     def start_raw_data_capture(self):
-        self._send_dca_cmd('RECORD_START_CMD_CODE')
+        self._send_dca_cmd_and_check_status('RECORD_START_CMD_CODE')
     
     def stop_raw_data_capture(self):
-        self._send_dca_cmd('RECORD_STOP_CMD_CODE')
+        self._send_dca_cmd_and_check_status('RECORD_STOP_CMD_CODE')
 
     def collect_data(self):
         try:
             msg, server = self.data_socket.recvfrom(2048)
+            self.get_logger().info(f"Starting to receive raw data!", once=True)
 
         except Exception as e:
             self.get_logger().debug(f"Error in receiving data: {e}")
@@ -138,14 +169,14 @@ class DCA1000Sensor(Node):
         self.bytec = bytec
 
     def publish_data(self):
-        if self.capture_started:
-            if self.data_array.queue.qsize() > 0:
-                message = DataFrame()
-                message.data = self.data_array.queue.get()
-                message.header.frame_id = self.frame_id
-                message.header.stamp = self.get_clock().now().to_msg()
+        if self.data_array.queue.qsize() > 0:
+            data = self.data_array.queue.get()
 
-                self.data_pub.publish(message)
+            message = DataFrame(data=data)
+            message.header.frame_id = self.frame_id
+            message.header.stamp = self.get_clock().now().to_msg()
+
+            self.data_pub.publish(message)
 
     def close(self):
         self.stop_raw_data_capture()
@@ -156,8 +187,15 @@ class DCA1000Sensor(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    rclpy.spin(DCA1000Sensor())
+    node = DCA1000Sensor()
 
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        node.close()
+        raise e
     rclpy.shutdown()
 
 
