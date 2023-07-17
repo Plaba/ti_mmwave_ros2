@@ -37,7 +37,7 @@ Clone, build and launch:
 4. Clone this repo and ROS serial onto your `<workspace dir>/src`:
 
   ```shell
-  git clone https://github.com/ethz-asl/ti_mmwave_ros2.git
+  git clone https://github.com/ethz-asl/xwr_data.git
   git clone https://github.com/wjwwood/serial.git
   ```
   
@@ -51,7 +51,7 @@ Clone, build and launch:
 6. Fire up the launch file:
 
   ```shell
-  roslaunch ti_mmwave_ros2 ti_radar.launch
+  roslaunch xwr_data ti_radar.launch
   ```
 
   Note: If you set `visualize` to `True`, then rviz should start and you should see something like the following:
@@ -131,13 +131,13 @@ Old:
 2. To avoid serial port conflict, you need to launch devices separately. So for the first device (it will open rviz):
 
   ```
-  roslaunch ti_mmwave_ros2 multi_1642_0.launch 
+  roslaunch xwr_data multi_1642_0.launch 
   ```
 
 3. Change radars' location in first three arguments `<node pkg="tf" type="static_transform_publisher" name="radar_baselink_0" args="0 -1 0 0 0 0 ti_mmwave_pcl ti_mmwave_0 100"/>` (stands for x,y,z for positions) in launch file `multi_1642_1.launch`. And launch second device:
 
   ```
-  roslaunch ti_mmwave_ros2 multi_1642_1.launch 
+  roslaunch xwr_data multi_1642_1.launch 
   ```
 
 Note: As serial connection and the original code, you need to launch devices separately using different launch files.
@@ -156,7 +156,7 @@ Note: As serial connection and the original code, you need to launch devices sep
 4. Launch radar-camera system using:
 
   ```
-  roslaunch ti_mmwave_ros2 camera_overlay.launch
+  roslaunch xwr_data camera_overlay.launch
   ```
 
 ## Changelog

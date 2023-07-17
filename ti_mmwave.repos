@@ -1,3 +1,3 @@
 - git:
     local-name: serial
-    uri: https://github.com/wjwwood/serial.git
+    uri: https://github.com/RoverRobotics-forks/serial-ros2.git
