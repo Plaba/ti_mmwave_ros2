@@ -9,6 +9,10 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <exec_depend>dca1000</exec_depend>
+  <exec_depend>xwr_config</exec_depend>
+  <exec_depend>xwr_data</exec_depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
