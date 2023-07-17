@@ -113,6 +113,9 @@ private:
   /*Contains the baud Rate*/
   int dataBaudRate;
 
+  /*Serial port for communication*/
+  serial::Serial uartReader;
+
   /*Contains the max_allowed_elevation_angle_deg (points with elevation angles
     outside +/- max_allowed_elevation_angle_deg will be removed)*/
   int maxAllowedElevationAngleDeg;
@@ -151,16 +154,13 @@ private:
   /*Condition variable which blocks the Sort Thread until signaled*/
   pthread_cond_t sort_go_cv;
 
-  /* Indicator that the read thread is joined */
-
   pthread_t read_thread_id;
   pthread_t sort_thread_id;
   pthread_t swap_thread_id;
 
   volatile bool should_shutdown = false;
+  volatile bool read_thread_joined = false;
   volatile bool swap_thread_joined = false;
-  volatile bool sort_thread_joined = false;
-
 
   /*Swap Buffer Pointers Thread*/
   void* syncedBufferSwap(void);
@@ -176,11 +176,13 @@ private:
 
   void visualize(const ti_mmwave_msgs::msg::RadarScan& msg);
 
-  /*Callback function registered to the ROS timer*/
+  /*Callback function to be called after rclcpp::shutdown()*/
   void shutdownCallback();
 
+  /*Callback function called when the device is configured*/
   void onReceiveConfig(const ti_mmwave_msgs::msg::MMWaveConfig::SharedPtr msg);
 
+  /*Subscriber to mmwave config event*/
   rclcpp::Subscription<ti_mmwave_msgs::msg::MMWaveConfig>::SharedPtr config_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr DataUARTHandler_pub;
 };

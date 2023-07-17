@@ -34,6 +34,9 @@ void DataUARTHandler::onCreate(){
   dataBaudRate = declare_parameter("data_rate", dataBaudRate);
   frameID = declare_parameter("frame_id", frameID);
 
+  uartReader.setBaudrate(dataBaudRate);
+  uartReader.setPort(dataSerialPort);
+
   maxAllowedElevationAngleDeg = declare_parameter("max_allowed_elevation_angle_deg", 90);
   maxAllowedAzimuthAngleDeg = declare_parameter("max_allowed_azimuth_angle_deg", 90);
 
@@ -50,11 +53,9 @@ void *DataUARTHandler::readIncomingData(void)
   uint8_t last8Bytes[8] = { 0 };
 
   /*Open UART Port and error checking*/
-  serial::Serial mySerialObject("", dataBaudRate, serial::Timeout::simpleTimeout(100));
-  mySerialObject.setPort(dataSerialPort);
   try
   {
-    mySerialObject.open();
+    uartReader.open();
   }
   catch (std::exception &e1)
   {
@@ -64,7 +65,7 @@ void *DataUARTHandler::readIncomingData(void)
     {
       // Wait 20 seconds and try to open serial port again
       rclcpp::sleep_for(std::chrono::seconds(20));
-      mySerialObject.open();
+      uartReader.open();
     }
     catch (std::exception &e2)
     {
@@ -75,7 +76,7 @@ void *DataUARTHandler::readIncomingData(void)
     }
   }
 
-  if (mySerialObject.isOpen())
+  if (uartReader.isOpen())
   {
     RCLCPP_INFO(get_logger(), "DataUARTHandler Read Thread: Port is open");
   }
@@ -95,14 +96,18 @@ void *DataUARTHandler::readIncomingData(void)
     last8Bytes[4] = last8Bytes[5];
     last8Bytes[5] = last8Bytes[6];
     last8Bytes[6] = last8Bytes[7];
-    mySerialObject.read(&last8Bytes[7], 1);
+    try {
+      uartReader.read(&last8Bytes[7], 1);
+    } catch (serial::PortNotOpenedException &e) { // Node is being stopped
+      break;
+    }
     RCLCPP_DEBUG_THROTTLE(get_logger(), clock, 500, "Waiting for magic word");
   }
 
   /*Lock nextBufp before entering main loop*/
   pthread_mutex_lock(&nextBufp_mutex);
 
-  while (!swap_thread_joined)
+  while (!should_shutdown)
   {
     /*Start reading UART data and writing to buffer while also checking for magicWord*/
     last8Bytes[0] = last8Bytes[1];
@@ -112,7 +117,12 @@ void *DataUARTHandler::readIncomingData(void)
     last8Bytes[4] = last8Bytes[5];
     last8Bytes[5] = last8Bytes[6];
     last8Bytes[6] = last8Bytes[7];
-    mySerialObject.read(&last8Bytes[7], 1);
+
+    try {
+      uartReader.read(&last8Bytes[7], 1);
+    } catch (serial::PortNotOpenedException &e) { // Node is being stopped
+      break;
+    }
 
     nextBufp->push_back(last8Bytes[7]);  // push byte onto buffer
 
@@ -150,7 +160,12 @@ void *DataUARTHandler::readIncomingData(void)
       memset(last8Bytes, 0, sizeof(last8Bytes));
     }
   }
-  mySerialObject.close();
+  
+  read_thread_joined = true;
+
+  pthread_mutex_unlock(&nextBufp_mutex);
+  pthread_cond_signal(&countSync_max_cv);
+
   RCLCPP_INFO(get_logger(), "Read Thread finished");
 
   pthread_exit(NULL);
@@ -178,11 +193,11 @@ int DataUARTHandler::isMagicWord(uint8_t last8Bytes[8])
 
 void *DataUARTHandler::syncedBufferSwap(void)
 {
-  while (!sort_thread_joined)
+  while (!read_thread_joined)
   {
     pthread_mutex_lock(&countSync_mutex);
 
-    while (countSync < COUNT_SYNC_MAX)
+    while (countSync < COUNT_SYNC_MAX && !read_thread_joined)
     {
       pthread_cond_wait(&countSync_max_cv, &countSync_mutex);
 
@@ -206,7 +221,8 @@ void *DataUARTHandler::syncedBufferSwap(void)
     pthread_mutex_unlock(&countSync_mutex);
   }
 
-  RCLCPP_INFO(get_logger(), "Swap Thread finished");
+  pthread_cond_signal(&sort_go_cv);
+
   swap_thread_joined = true;
 
   pthread_exit(NULL);
@@ -232,7 +248,7 @@ void *DataUARTHandler::sortIncomingData(void)
 
   pthread_mutex_lock(&currentBufp_mutex);
 
-  while (!should_shutdown)
+  while (!swap_thread_joined)
   {
     switch (sorterState)
     {
@@ -490,7 +506,6 @@ void *DataUARTHandler::sortIncomingData(void)
         break;
 
       case SWAP_BUFFERS:
-
         pthread_mutex_lock(&countSync_mutex);
         pthread_mutex_unlock(&currentBufp_mutex);
 
@@ -518,11 +533,7 @@ void *DataUARTHandler::sortIncomingData(void)
     }
   }
 
-  pthread_cond_signal(&countSync_max_cv);
   pthread_mutex_unlock(&currentBufp_mutex);
-
-  sort_thread_joined = true;
-  RCLCPP_INFO(get_logger(), "Sort Thread finished");
 
   pthread_exit(NULL);
 }
@@ -613,16 +624,27 @@ void DataUARTHandler::shutdownCallback()
   should_shutdown = true;
   int retval;
 
-  auto logger = rclcpp::get_logger("mmwave_shutdown");
+  auto logger = rclcpp::get_logger("uart_handler_shutdown");
+
+  uartReader.close();
 
   if((retval = pthread_join(read_thread_id, NULL))!=0){
     RCLCPP_ERROR(logger, "Error when joining read thread: pthread_join returned %d", retval);
+  } else {
+    RCLCPP_DEBUG(logger, "Read Thread joined");
   }
-  RCLCPP_INFO(logger, "DataUARTHandler Read Thread joined");
-  pthread_join(sort_thread_id, NULL);
-  RCLCPP_INFO(logger, "DataUARTHandler Sort Thread joined");
-  pthread_join(swap_thread_id, NULL);
-  RCLCPP_INFO(logger, "DataUARTHandler Swap Thread joined");
+
+  if((retval = pthread_join(swap_thread_id, NULL))!=0){
+    RCLCPP_ERROR(logger, "Error when joining swap thread: pthread_join returned %d", retval);
+  } else {
+    RCLCPP_DEBUG(logger, "Swap Thread joined");
+  }
+
+  if((retval = pthread_join(sort_thread_id, NULL))!=0){
+    RCLCPP_ERROR(logger, "Error when joining sort thread: pthread_join returned %d", retval);
+  } else {
+    RCLCPP_DEBUG(logger, "Sort Thread joined");
+  }
 
   pthread_mutex_destroy(&countSync_mutex);
   pthread_mutex_destroy(&nextBufp_mutex);
@@ -632,8 +654,6 @@ void DataUARTHandler::shutdownCallback()
   pthread_cond_destroy(&sort_go_cv);
 
   RCLCPP_INFO(logger, "Shutting down node");
-
-  rclcpp::shutdown();
 }
 
 void *DataUARTHandler::readIncomingData_helper(void *context)
