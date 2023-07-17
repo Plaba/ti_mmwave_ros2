@@ -2,7 +2,7 @@
 
 This package provides a ROS package for TI's mmWave radars.
 
-It is forked from Leo Zhang's [work](https://github.com/radar-lab/ti_mmwave_rospkg), which itself is based on TI's [ROS driver](https://dev.ti.com/tirex/explore/node?node=AJVkbvjyhr4p7F6L5Elt4w__VLyFKFf__LATEST). This fork aims to update and simplify the code and make it more accessible for robotic applications with short to medium-range sensing requirements. We believe that this small form-factor antenna on package (AOP) chip design features some unique capabilities thanks to its little weight and low power consumption.
+It is forked from Leo Zhang's [work](https://github.com/radar-lab/ti_mmwave_rospkg), which itself is based on TI's [ROS driver](https://dev.ti.com/tirex/explore/node?node=AJVkbvjyhr4p7F6L5Elt4w__VLyFKFf__LATEST). This fork aims to update and simplify the code, porting it to ROS 2, and make it more accessible for robotic applications with short to medium-range sensing requirements. We believe that this small form-factor antenna on package (AOP) chip design features some unique capabilities thanks to its little weight and low power consumption. The driver for the DCA1000 is based on a [package by moodoki](https://github.com/moodoki/iwr_raw_rosnode/)
 
 ## Devices and Software
 
@@ -10,10 +10,9 @@ The package has been tested with the following setups:
 
 * Devices
   * AWR 1843AOP evaluation module
-  * AWR & IWR 6843AOP evaluation module
+  * DCA1000 
 * Software (Ubuntu / ROS)
-  * 18.04 / Melodic
-  * 20.04 / Noetic
+  * 20.04 / Galactic
 * SDK version: 3.5
 
 The devices typically come with the out-of-box demo preinstalled, so most likely, you don't need to flash the evaluation module. If your sensors don't match with the SDK version (3.5), consider re-flashing them according to [this](https://dev.ti.com/tirex/explore/content/mmwave_industrial_toolbox_4_10_0/labs/Robotics/ros_driver/docs/TI_mmWave_ROS_Driver_Users_Guide.html#how-do-i-re-flash-the-ti-mmwave-evm-with-out-of-box-demo-) guide.
@@ -29,44 +28,40 @@ Preliminary steps:
 ```
 sudo usermod -aG dialout $USER
 ```
-  
 3. Test your sensor with the [Demo Visualizer](https://dev.ti.com/gallery/view/mmwave/mmWave_Demo_Visualizer/ver/3.5.0/) to check the connectivity and basic functionality. You can also create your own configuration file for your use-case (fps, range, velocity, etc.) with the visualizer.
+4. Connect the DCA1000 EVM ethernet port to an ethernet port on the host machine. (This also works with ethernet to USB converters)
 
 Clone, build and launch:
 
-4. Clone this repo and ROS serial onto your `<workspace dir>/src`:
+5. Clone this repo and ROS serial onto your `<workspace dir>/src`:
 
   ```shell
-  git clone https://github.com/ethz-asl/xwr_data.git
-  git clone https://github.com/wjwwood/serial.git
+  git clone https://github.com/Plaba/ti_mmwave_ros2.git
+  git clone https://github.com/Plaba/serial-ros2.git
   ```
   
-5. Go back to `<workspace dir>`, then build and source:
+6. Go back to `<workspace dir>`, then build and source:
 
   ```shell
-  catkin build
-  source devel/setup.bash
+  colcon build --symlink-install
+  source install/setup.bash
   ```
 
-6. Fire up the launch file:
+7. Fire up the launch file:
 
   ```shell
-  roslaunch xwr_data ti_radar.launch
+  ros2 launch ti_mmwave ti_radar.launch.py
   ```
 
-  Note: If you set `visualize` to `True`, then rviz should start and you should see something like the following:
+  ~~Note: If you set `visualize` to `True`, then rviz should start and you should see something like the following: ~~ TODO update
 
   ![rviz](auxiliary/rviz_pointCloud.jpg "Rviz")
   
-7. ROS topics can be accessed as follows:
+8. ROS topics can be accessed as follows:
   ```shell
-  rostopic list
-  rostopic echo /zero/ti_mmwave/radar_scan_pcl
-  ```
-8. ROS parameters can be accessed as follows:
-  ```shell
-  rosparam list
-  rosparam get /ti_mmwave/max_doppler_vel
+  ros2 topic list
+  ros2 topic echo /ti_mmwave/radar_scan_pcl
+  ros2 topic echo /ti_mmwave/raw_data
   ```
   
 ## Message format
@@ -94,7 +89,7 @@ The `radar_scan_pcl` is a customized point cloud topic, consisting of:
   ```
   restart your shell and try again.
 
-2. Sensor hiccup
+2. Sensor hiccup:
 
   ```
   mmWaveQuickConfig: Command failed (mmWave sensor did not respond with 'Done')
@@ -104,6 +99,10 @@ The `radar_scan_pcl` is a customized point cloud topic, consisting of:
   ```
 
   When this happens, re-run the command you send to the sensor. If it continues, shut down and restart the sensor.
+3. DCA1000 configures correctly but no data is sent:
+
+  Make sure the xWR1xxx is in debug mode, and switch 2.5 on the DCA1000 is set to SW_CONFIG. [Source](https://www.ti.com/lit/ug/spruij4a/spruij4a.pdf)
+
 
 ## Multiple devices support (todo: update this!)
 
